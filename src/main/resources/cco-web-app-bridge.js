@@ -34,7 +34,10 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
     }
 
     showIframePopup() {
-        const url = 'http://localhost:9999/1337/PluginServlet?action=webAppBridgeServlet';
+        // Derive URL from current page location
+        const basePath = window.location.pathname.replace(/_\/$/, '/');
+        const url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
+
         try {
             this.allowedOrigin = new URL(url).origin;
         } catch (e) {
@@ -53,7 +56,7 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
                         <iframe
                             id="${iframeId}"
                             src="${url}"
-                            style="width:100%; height:500px; border:none;"
+                            style="width:100%; height:100%; border:none;"
                             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                         ></iframe>
                     `
