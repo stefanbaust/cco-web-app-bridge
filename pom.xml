@@ -1,0 +1,114 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<modelVersion>4.0.0</modelVersion>
+<groupId>dev.baust.cco.webapp.bridge</groupId>
+<artifactId>cco-web-app-bridge</artifactId>
+<version>1.0-SNAPSHOT</version>
+<properties>
+    <sap.scco.pluginClass>dev.baust.cco.webapp.bridge.WebAppBridgePlugin</sap.scco.pluginClass>
+    <sap.scco.POSVersions>2.0 FP21, 3.0 FP2502, 3.0 FP2503, n/a</sap.scco.POSVersions>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+</properties>
+<!-- Dependencies-->
+<dependencies>
+    <dependency>
+        <groupId>com.sap.customercheckout.pos</groupId>
+        <artifactId>ENV</artifactId>
+        <version>3.2503.1</version>
+        <scope>provided</scope>
+        <exclusions>
+            <exclusion>
+                <groupId>org.opensaml</groupId>
+                <artifactId>opensaml-saml-impl</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>org.opensaml</groupId>
+                <artifactId>opensaml-xacml-impl</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>org.opensaml</groupId>
+                <artifactId>opensaml-xacml-saml-impl</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>javax.servlet</groupId>
+                <artifactId>javax.servlet-api</artifactId>
+            </exclusion>
+        </exclusions>
+    </dependency>
+    <dependency>
+        <groupId>com.squareup.okhttp3</groupId>
+        <artifactId>logging-interceptor</artifactId>
+        <version>4.12.0</version>
+    </dependency>
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>5.14.0</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-core</artifactId>
+        <version>5.14.2</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-junit-jupiter</artifactId>
+        <version>5.14.2</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+<build>
+    <!-- Build Plugins-->
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>3.6.0</version>
+            <executions>
+                <execution>
+                    <phase>package</phase>
+                    <goals>
+                        <goal>shade</goal>
+                    </goals>
+                </execution>
+            </executions>
+            <configuration>
+                <filters>
+                    <filter>
+                        <artifact>*:*</artifact>
+                        <excludes>
+                            <exclude>META-INF/*.SF</exclude>
+                            <exclude>META-INF/*.DSA</exclude>
+                            <exclude>META-INF/*.RSA</exclude>
+                        </excludes>
+                    </filter>
+                </filters>
+            </configuration>
+        </plugin>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <version>3.4.2</version>
+            <configuration>
+                <archive>
+                    <manifest>
+                        <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                    </manifest>
+                    <manifestEntries>
+                        <pluginName>${project.name}</pluginName>
+                        <cashdeskPOSPlugin>${sap.scco.pluginClass}</cashdeskPOSPlugin>
+                        <cashDeskVersions>${sap.scco.POSVersions}</cashDeskVersions>
+                    </manifestEntries>
+                </archive>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+</project>
