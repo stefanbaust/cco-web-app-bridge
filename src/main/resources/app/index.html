@@ -92,6 +92,7 @@
 
 <div class="actions">
     <button id="btnMessage" disabled onclick="sendMessage()">Show Message on POS</button>
+    <button id="btnSalesItem" disabled onclick="addSalesItem()">Add SalesItem</button>
     <button id="btnReceipt" disabled onclick="fetchReceipt()">Fetch Receipt</button>
 </div>
 
@@ -141,6 +142,14 @@
     function sendMessage() {
         pos.pushEvent('SHOW_MESSAGE', 'Hello from the iframe app!');
         log('Sent SHOW_MESSAGE');
+    }
+
+    function addSalesItem() {
+        pos.pushEvent('SALESITEM_ADD', {
+                materialId: 'JAC.49000',
+                quantity: 1,
+                split: true
+            });
     }
 
     function formatCurrency(amount, currency) {
