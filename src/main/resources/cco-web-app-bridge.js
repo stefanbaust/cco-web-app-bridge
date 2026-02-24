@@ -11,6 +11,9 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         this.iframeWindow = null;
         this.allowedOrigin = null;
 
+        this._rpcHandlers = {};
+        this._registerRpcHandlers();
+
         this.init();
         window.webAppBridgePluginRef = this;
     }
@@ -25,6 +28,21 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         window.removeEventListener('message', this._boundMessageHandler);
     }
 
+    // -------------------------------------------------------
+    // RPC Handler Registration
+    // -------------------------------------------------------
+
+    _registerRpcHandlers() {
+        this._rpcHandlers['getReceipt'] = () => {
+            const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
+            return receiptStore.getReceiptModel();
+        };
+    }
+
+    // -------------------------------------------------------
+    // Event Handling
+    // -------------------------------------------------------
+
     handleEvent(event) {
         switch (event.getType()) {
             case 'SB_SHOW_WEBVIEW':
@@ -34,7 +52,6 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
     }
 
     showIframePopup() {
-        // Derive URL from current page location
         const basePath = window.location.pathname.replace(/_\/$/, '/');
         const url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
 
@@ -77,7 +94,9 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         }, 0);
     }
 
-    // --- Incoming messages from iframe ---
+    // -------------------------------------------------------
+    // Incoming messages from iframe
+    // -------------------------------------------------------
 
     _handlePostMessage(event) {
         if (this.allowedOrigin && event.origin !== this.allowedOrigin) {
@@ -91,7 +110,11 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
 
         switch (data.type) {
             case 'IFRAME_READY':
-                this._sendToIframe({type: 'BRIDGE_READY'});
+                this._sendToIframe({ type: 'BRIDGE_READY' });
+                break;
+
+            case 'RPC_REQUEST':
+                this._handleRpcRequest(data);
                 break;
 
             case 'PUSH_EVENT':
@@ -99,16 +122,6 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
                     this.eventBus.push(data.payload.eventType, data.payload.eventData);
                 }
                 break;
-
-            case 'GET_RECEIPT': {
-                const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
-                const receiptModel = receiptStore.getReceiptModel();
-                this._sendToIframe({
-                    type: 'RECEIPT_DATA',
-                    payload: receiptModel
-                });
-                break;
-            }
 
             case 'CLOSE_POPUP':
                 break;
@@ -118,7 +131,44 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         }
     }
 
-    // --- Outgoing messages to iframe ---
+    _handleRpcRequest(data) {
+        const { id, method, args } = data;
+        const handler = this._rpcHandlers[method];
+
+        if (!handler) {
+            this._sendToIframe({
+                type: 'RPC_RESPONSE',
+                id,
+                error: `Unknown method: ${method}`
+            });
+            return;
+        }
+
+        try {
+            const result = handler(args || {});
+
+            // Support both sync and async handlers
+            if (result && typeof result.then === 'function') {
+                result.then(
+                    (res) => this._sendToIframe({ type: 'RPC_RESPONSE', id, result: res }),
+                    (err) => this._sendToIframe({ type: 'RPC_RESPONSE', id, error: String(err) })
+                );
+            } else {
+                this._sendToIframe({ type: 'RPC_RESPONSE', id, result });
+            }
+        } catch (e) {
+            console.error('[WebAppBridge] RPC error:', method, e);
+            this._sendToIframe({
+                type: 'RPC_RESPONSE',
+                id,
+                error: String(e)
+            });
+        }
+    }
+
+    // -------------------------------------------------------
+    // Outgoing messages to iframe
+    // -------------------------------------------------------
 
     _sendToIframe(message) {
         console.log('[WebAppBridge] Send to iframe:', message);
@@ -129,6 +179,17 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         }
     }
 
+    /**
+     * Push a POS event to the iframe app.
+     * Use this from other plugins or POS event handlers.
+     */
+    sendEvent(event, data) {
+        this._sendToIframe({ type: 'POS_EVENT', event, data });
+    }
+
+    /**
+     * @deprecated Use sendEvent() instead
+     */
     sendToApp(type, payload) {
         this._sendToIframe({ type, payload });
     }

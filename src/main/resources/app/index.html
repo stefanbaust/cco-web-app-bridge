@@ -62,7 +62,6 @@
             width: 100%;
             border-collapse: collapse;
             background: #fff;
-            border-radius: 0 0 6px 6px;
             overflow: hidden;
         }
         th, td {
@@ -100,9 +99,11 @@
 
 <div id="log" class="log"></div>
 
+<!-- Include the SDK -->
+<script src="PluginServlet?action=posBridgeSdk"></script>
+
 <script>
-    let bridgeReady = false;
-    const posOrigin = '*';
+    const pos = new POSBridge();
 
     function log(text) {
         const el = document.getElementById('log');
@@ -112,49 +113,34 @@
         el.scrollTop = el.scrollHeight;
     }
 
-    function setBridgeReady() {
-        bridgeReady = true;
+    // Wait for bridge, then enable UI
+    pos.ready().then(() => {
         document.getElementById('status').className = 'status connected';
         document.getElementById('status').textContent = '✅ Connected to POS';
         document.querySelectorAll('button').forEach(b => b.disabled = false);
         log('Bridge ready');
-    }
-
-    // --- Incoming from POS ---
-    window.addEventListener('message', (event) => {
-        const data = event.data;
-        if (!data || !data.type) return;
-
-        log(`Received: ${data.type}`);
-
-        switch (data.type) {
-            case 'BRIDGE_READY':
-                setBridgeReady();
-                break;
-            case 'RECEIPT_DATA':
-                log('Received receipt data');
-                renderReceipt(data.payload);
-                break;
-            default:
-                log(`Unknown message type: ${data.type}`);
-        }
     });
 
-    // --- Outgoing to POS ---
-    function sendMessage() {
-        window.parent.postMessage({
-            type: 'PUSH_EVENT',
-            payload: {
-                eventType: 'SHOW_MESSAGE',
-                eventData: 'Hello from the iframe app!'
-            }
-        }, posOrigin);
-        log('Sent PUSH_EVENT');
+    // Example event listener (will fire once plugin pushes receiptChanged events)
+    pos.on('receiptChanged', (receipt) => {
+        log('Receipt changed event received');
+        renderReceipt(receipt);
+    });
+
+    async function fetchReceipt() {
+        try {
+            log('Fetching receipt...');
+            const receipt = await pos.getReceipt();
+            log('Receipt received');
+            renderReceipt(receipt);
+        } catch (e) {
+            log(`Error: ${e.message}`);
+        }
     }
 
-    function fetchReceipt() {
-        window.parent.postMessage({ type: 'GET_RECEIPT' }, posOrigin);
-        log('Requested receipt');
+    function sendMessage() {
+        pos.pushEvent('SHOW_MESSAGE', 'Hello from the iframe app!');
+        log('Sent SHOW_MESSAGE');
     }
 
     function formatCurrency(amount, currency) {
@@ -211,12 +197,6 @@
         container.innerHTML = html;
         log(`Rendered ${receipt.salesItems.length} item(s), total: ${formatCurrency(receipt.totalGrossAmount, currency)}`);
     }
-
-    // --- Handshake: tell parent we're ready ---
-    window.addEventListener('load', () => {
-        log('Page loaded, notifying parent...');
-        window.parent.postMessage({ type: 'IFRAME_READY' }, posOrigin);
-    });
 </script>
 </body>
 </html>

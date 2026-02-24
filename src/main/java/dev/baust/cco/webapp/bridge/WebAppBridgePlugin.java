@@ -41,17 +41,22 @@ public class WebAppBridgePlugin extends BasePlugin {
         HttpServletResponse response = (HttpServletResponse) args[1];
 
         String action = request.getParameter("action");
-        if (!"webAppBridgeServlet".equals(action)) {
+        if (!"webAppBridgeServlet".equals(action) && !"posBridgeSdk".equals(action)) {
             return;
+        }
+
+        String resourceName = "/app/index.html";
+        if("posBridgeSdk".equals(action)) {
+            resourceName = "/app/pos-bridge-sdk.js";
         }
 
         response.setContentType("text/html");
         response.setCharacterEncoding("UTF-8");
 
-        try (InputStream is = this.getClass().getResourceAsStream("/app/index.html")) {
+        try (InputStream is = this.getClass().getResourceAsStream(resourceName)) {
             if (is == null) {
                 response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.getWriter().write("index.html not found");
+                response.getWriter().write(resourceName + " not found");
                 return;
             }
             byte[] content = is.readAllBytes();
