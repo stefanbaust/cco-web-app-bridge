@@ -10,6 +10,7 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         this.eventBus = eventBus;
 
         this.init();
+        window.webAppBridgePluginRef = this;
     }
 
     init() {
@@ -30,18 +31,25 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         this.eventBus.push('SHOW_GENERIC_POPUP', {
             title: 'Simple popup',
             componentConfig: {
-                component: 'ButtonComponent',
+                component: 'HtmlComponent',
                 props: {
-                    content: 'This is a simple button',
-                    class: 'function1',
-                    callback: () => {
-                        console.log('Button pressed');
-                    }
+                    content: `
+                        <b>This is custom HTML</b><br/>
+                        <button onclick="webAppBridgePluginRef.someFunctionCalledFromCustomHTML('Hello!');">Custom button</button><br/>
+                        <span class="myCustomCss" id="span1">Span with custom css</span><br/>
+                    `
                 }
             },
             resultFunction: (positive) => {
                 console.log('Popup closed. X or cancel clicked:', !positive);
             }
         });
+    }
+
+    someFunctionCalledFromCustomHTML(text) {
+        //Function called by custom HTML code
+        this.eventBus.push('SHOW_MESSAGE_BOX', text);
+        document.getElementById('span1').classList.remove('myCustomCss');
+        document.getElementById('span1').classList.add('myCustomCss2');
     }
 }
