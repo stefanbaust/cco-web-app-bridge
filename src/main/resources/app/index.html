@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web App Bridge Sample</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { font-size: 18px; margin-bottom: 16px; }
+        .status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .status.disconnected { background: #fee; color: #c00; }
+        .status.connected { background: #efe; color: #060; }
+        .actions { display: flex; flex-direction: column; gap: 10px; }
+        button {
+            padding: 12px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #0066cc;
+            color: #fff;
+            transition: background 0.15s;
+        }
+        button:hover { background: #0052a3; }
+        button:disabled { background: #aaa; cursor: not-allowed; }
+        .log {
+            margin-top: 20px;
+            padding: 10px;
+            background: #1e1e1e;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log p { margin: 2px 0; }
+    </style>
+</head>
+<body>
+<h1>Iframe Web App</h1>
+<div id="status" class="status disconnected">⏳ Waiting for POS bridge...</div>
+
+<div class="actions">
+    <button id="btnMessage" disabled onclick="sendMessage()">Show Message on POS</button>
+</div>
+
+<div id="log" class="log"></div>
+
+<script>
+    let bridgeReady = false;
+    // In production, set this to the actual POS origin
+    const posOrigin = '*';
+
+    function log(text) {
+        const el = document.getElementById('log');
+        const p = document.createElement('p');
+        p.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+        el.appendChild(p);
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function setBridgeReady() {
+        bridgeReady = true;
+        document.getElementById('status').className = 'status connected';
+        document.getElementById('status').textContent = '✅ Connected to POS';
+        document.querySelectorAll('button').forEach(b => b.disabled = false);
+        log('Bridge ready');
+    }
+
+    // --- Incoming from POS ---
+    window.addEventListener('message', (event) => {
+        const data = event.data;
+        if (!data || !data.type) return;
+
+        log(`Received: ${JSON.stringify(data)}`);
+
+        switch (data.type) {
+            case 'BRIDGE_READY':
+                setBridgeReady();
+                break;
+            default:
+                log(`Unknown message type: ${data.type}`);
+        }
+    });
+
+    // --- Outgoing to POS ---
+    function sendMessage() {
+        window.parent.postMessage({
+            type: 'PUSH_EVENT',
+            payload: {
+                eventType: 'SHOW_MESSAGE',
+                eventData: { text: 'Hello from the iframe app!' }
+            }
+        }, posOrigin);
+        log('Sent PUSH_EVENT');
+    }
+</script>
+</body>
+</html>
