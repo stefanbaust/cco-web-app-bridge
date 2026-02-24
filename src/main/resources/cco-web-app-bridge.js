@@ -73,19 +73,13 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
             console.log('got Iframe:', iframe);
             if (iframe) {
                 this.iframeWindow = iframe.contentWindow;
-                iframe.addEventListener('load', () => {
-                    console.log('Iframe loaded');
-                    // Notify the iframe app that the bridge is ready
-                    this._sendToIframe({ type: 'BRIDGE_READY' });
-                });
             }
-        }, 500);
+        }, 0);
     }
 
     // --- Incoming messages from iframe ---
 
     _handlePostMessage(event) {
-        // Security: only accept messages from the allowed origin
         if (this.allowedOrigin && event.origin !== this.allowedOrigin) {
             return;
         }
@@ -96,15 +90,18 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         console.log('[WebAppBridge] Received from iframe:', data);
 
         switch (data.type) {
+            case 'IFRAME_READY':
+                // Iframe is loaded and listening, complete the handshake
+                this._sendToIframe({type: 'BRIDGE_READY'});
+                break;
+
             case 'PUSH_EVENT':
-                // Generic passthrough: let the iframe push any event onto the POS event bus
                 if (data.payload?.eventType) {
                     this.eventBus.push(data.payload.eventType, data.payload.eventData);
                 }
                 break;
 
             case 'CLOSE_POPUP':
-                // Could trigger popup close logic if supported
                 break;
 
             default:

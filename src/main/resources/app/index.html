@@ -101,11 +101,17 @@
             type: 'PUSH_EVENT',
             payload: {
                 eventType: 'SHOW_MESSAGE',
-                eventData: { text: 'Hello from the iframe app!' }
+                eventData: 'Hello from the iframe app!'
             }
         }, posOrigin);
         log('Sent PUSH_EVENT');
     }
+
+    // --- Handshake: tell parent we're ready ---
+    window.addEventListener('load', () => {
+        log('Page loaded, notifying parent...');
+        window.parent.postMessage({ type: 'IFRAME_READY' }, posOrigin);
+    });
 </script>
 </body>
 </html>
