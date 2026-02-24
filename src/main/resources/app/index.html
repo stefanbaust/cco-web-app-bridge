@@ -46,6 +46,45 @@
             overflow-y: auto;
         }
         .log p { margin: 2px 0; }
+        #receiptContainer { margin-top: 16px; }
+        .receipt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: #fff;
+            border-radius: 6px 6px 0 0;
+            border-bottom: 2px solid #0066cc;
+            font-size: 13px;
+        }
+        .receipt-header strong { font-size: 14px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+            border-radius: 0 0 6px 6px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+        th { background: #0066cc; color: #fff; }
+        td.num { text-align: right; }
+        th.num { text-align: right; }
+        tr:last-child td { border-bottom: none; }
+        .receipt-footer {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: #fff;
+            border-top: 2px solid #0066cc;
+            border-radius: 0 0 6px 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -54,13 +93,15 @@
 
 <div class="actions">
     <button id="btnMessage" disabled onclick="sendMessage()">Show Message on POS</button>
+    <button id="btnReceipt" disabled onclick="fetchReceipt()">Fetch Receipt</button>
 </div>
+
+<div id="receiptContainer"></div>
 
 <div id="log" class="log"></div>
 
 <script>
     let bridgeReady = false;
-    // In production, set this to the actual POS origin
     const posOrigin = '*';
 
     function log(text) {
@@ -84,11 +125,15 @@
         const data = event.data;
         if (!data || !data.type) return;
 
-        log(`Received: ${JSON.stringify(data)}`);
+        log(`Received: ${data.type}`);
 
         switch (data.type) {
             case 'BRIDGE_READY':
                 setBridgeReady();
+                break;
+            case 'RECEIPT_DATA':
+                log('Received receipt data');
+                renderReceipt(data.payload);
                 break;
             default:
                 log(`Unknown message type: ${data.type}`);
@@ -105,6 +150,66 @@
             }
         }, posOrigin);
         log('Sent PUSH_EVENT');
+    }
+
+    function fetchReceipt() {
+        window.parent.postMessage({ type: 'GET_RECEIPT' }, posOrigin);
+        log('Requested receipt');
+    }
+
+    function formatCurrency(amount, currency) {
+        return new Intl.NumberFormat('de-DE', {
+            style: 'currency',
+            currency: currency || 'EUR'
+        }).format(amount);
+    }
+
+    function renderReceipt(receipt) {
+        const container = document.getElementById('receiptContainer');
+        const currency = receipt.currency || 'EUR';
+
+        if (!receipt || !receipt.salesItems || receipt.salesItems.length === 0) {
+            container.innerHTML = '<p style="padding:16px; color:#666;">No items on receipt.</p>';
+            return;
+        }
+
+        let html = `
+            <div class="receipt-header">
+                <strong>Receipt ${receipt.id || ''}</strong>
+                <span>${new Date(receipt.businessTransactionDate).toLocaleString('de-DE')}</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Pos</th>
+                        <th>Item</th>
+                        <th class="num">Qty</th>
+                        <th class="num">Unit Price</th>
+                        <th class="num">Tax %</th>
+                        <th class="num">Total</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        receipt.salesItems.forEach((item, index) => {
+            html += `<tr>
+                <td>${index + 1}</td>
+                <td>${item.description || item.id || '—'}</td>
+                <td class="num">${item.quantity ?? ''} ${item.quantityTypeCodeName || ''}</td>
+                <td class="num">${formatCurrency(item.unitGrossAmount, currency)}</td>
+                <td class="num">${(item.taxRate * 100).toFixed(0)}%</td>
+                <td class="num">${formatCurrency(item.grossAmount, currency)}</td>
+            </tr>`;
+        });
+
+        html += `</tbody></table>
+            <div class="receipt-footer">
+                <span>Net: ${formatCurrency(receipt.totalNetAmount, currency)} | Tax: ${formatCurrency(receipt.totalTaxAmount, currency)}</span>
+                <span>Total: ${formatCurrency(receipt.totalGrossAmount, currency)}</span>
+            </div>`;
+
+        container.innerHTML = html;
+        log(`Rendered ${receipt.salesItems.length} item(s), total: ${formatCurrency(receipt.totalGrossAmount, currency)}`);
     }
 
     // --- Handshake: tell parent we're ready ---

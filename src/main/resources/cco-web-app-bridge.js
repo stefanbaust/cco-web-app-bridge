@@ -34,11 +34,9 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
     }
 
     showIframePopup() {
-        // Extract origin for security validation
         const url = 'http://localhost:9999/1337/PluginServlet?action=webAppBridgeServlet';
         try {
-            // TODO this has to be changed to figure out the URL on the fly
-            this.allowedOrigin = new URL('http://localhost:9999/1337/PluginServlet?action=webAppBridgeServlet').origin;
+            this.allowedOrigin = new URL(url).origin;
         } catch (e) {
             console.error('Invalid iframe URL:', url);
             return;
@@ -67,7 +65,6 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
             }
         });
 
-        // Wait for DOM to render, then grab iframe reference
         setTimeout(() => {
             const iframe = document.getElementById(iframeId);
             console.log('got Iframe:', iframe);
@@ -91,7 +88,6 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
 
         switch (data.type) {
             case 'IFRAME_READY':
-                // Iframe is loaded and listening, complete the handshake
                 this._sendToIframe({type: 'BRIDGE_READY'});
                 break;
 
@@ -100,6 +96,16 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
                     this.eventBus.push(data.payload.eventType, data.payload.eventData);
                 }
                 break;
+
+            case 'GET_RECEIPT': {
+                const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
+                const receiptModel = receiptStore.getReceiptModel();
+                this._sendToIframe({
+                    type: 'RECEIPT_DATA',
+                    payload: receiptModel
+                });
+                break;
+            }
 
             case 'CLOSE_POPUP':
                 break;
@@ -120,10 +126,6 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         }
     }
 
-    /**
-     * Send arbitrary data/events to the iframe app.
-     * Can be called from other plugins or POS event handlers.
-     */
     sendToApp(type, payload) {
         this._sendToIframe({ type, payload });
     }
