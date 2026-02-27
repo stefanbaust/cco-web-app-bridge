@@ -22,6 +22,17 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         this.eventBus.subscribe(this);
         this._boundMessageHandler = this._handlePostMessage.bind(this);
         window.addEventListener('message', this._boundMessageHandler);
+
+        const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
+        receiptStore.addObserver(this);
+
+    }
+
+    observe(store, payload) {
+        if (store instanceof cco.ReceiptStore) {
+            console.log('Current state', payload);
+            this.sendEvent('receiptChanged', store.getReceiptModel());
+        }
     }
 
     destroy() {
