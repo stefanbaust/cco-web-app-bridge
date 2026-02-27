@@ -28,6 +28,13 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
 
     }
 
+    async fetchPluginConfig() {
+        const pluginConfigResponse = await this.pluginService.backendPluginEvent('SB_BRIDGE_GET_PLUGIN_CONFIG', {});
+        console.info('Config fetched loaded');
+        console.info('Plugin config loaded', pluginConfigResponse.payload.config);
+        return pluginConfigResponse.payload.config;
+    }
+
     observe(store, payload) {
         if (store instanceof cco.ReceiptStore) {
             console.log('Current state', payload);
@@ -55,6 +62,13 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
     // -------------------------------------------------------
 
     handleEvent(event) {
+        if (event.getType() === 'WORKCENTER_LOADED' && event.getSource() !== this.pluginEventSourceIdentifier) {
+            if (!this.pluginConfig) {
+                this.fetchPluginConfig().then((config) => {
+                    this.pluginConfig = config;
+                });
+            }
+        }
         switch (event.getType()) {
             case 'SB_SHOW_WEBVIEW':
                 this.showIframePopup();
@@ -64,7 +78,11 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
 
     showIframePopup() {
         const basePath = window.location.pathname.replace(/_\/$/, '/');
-        const url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
+        let url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
+
+        if(this.pluginConfig.DEVMODE === true) {
+            url = 'http://localhost:4200'
+        }
 
         try {
             this.allowedOrigin = new URL(url).origin;

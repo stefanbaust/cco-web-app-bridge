@@ -46,6 +46,7 @@ export class App implements OnInit, OnDestroy {
 
     this.sub = this.pos.on('receiptChanged').subscribe((receipt: Receipt) => {
       this.log('Receipt changed event received');
+      console.log('receipt', receipt);
       this.receipt.set(receipt);
     });
   }
@@ -87,6 +88,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   private log(text: string): void {
+    console.log('Logging', text);
     const time = new Date().toLocaleTimeString();
     this.logs.update((logs) => [...logs, `[${time}] ${text}`]);
   }

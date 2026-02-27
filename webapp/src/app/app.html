@@ -19,7 +19,9 @@
     @if (r.salesItems && r.salesItems.length > 0) {
       <div class="receipt-header">
         <strong>Receipt {{ r.id || '' }}</strong>
-        <span>{{ r.businessTransactionDate | date:'medium':'':'de-DE' }}</span>
+        @if (r.businessTransactionDate) {
+          <span>{{ r.businessTransactionDate | date:'medium':'':'de-DE' }}</span>
+        }
       </div>
       <table>
         <thead>

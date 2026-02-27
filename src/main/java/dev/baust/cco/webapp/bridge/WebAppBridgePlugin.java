@@ -1,18 +1,29 @@
 package dev.baust.cco.webapp.bridge;
 
 import com.sap.scco.ap.plugin.BasePlugin;
+import com.sap.scco.ap.plugin.PluginConfigurationDTO;
+import com.sap.scco.ap.plugin.PluginConfigurationType;
 import com.sap.scco.ap.plugin.annotation.ListenToExit;
 import com.sap.scco.ap.plugin.annotation.ui.CSSInject;
 import com.sap.scco.ap.plugin.annotation.ui.JSInject;
+import com.sap.scco.ap.plugin.helper.PluginExitPoints;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import net.sf.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class WebAppBridgePlugin extends BasePlugin {
+
+    private static Logger logger = LoggerFactory.getLogger(WebAppBridgePlugin.class);
 
     private static final Map<String, String> CONTENT_TYPES = Map.ofEntries(
             Map.entry("js", "application/javascript"),
@@ -45,6 +56,36 @@ public class WebAppBridgePlugin extends BasePlugin {
     @Override
     public String getVersion() {
         return getClass().getPackage().getImplementationVersion();
+    }
+
+    @Override
+    public List<PluginConfigurationDTO> getPluginPropertyConfiguration() {
+        List<PluginConfigurationDTO> result = new ArrayList<>();
+        result.add(new PluginConfigurationDTO("DEVMODE", "Debug Mode", PluginConfigurationType.BOOLEAN));
+        return result;
+    }
+
+    @Override
+    public boolean persistPropertiesToDB() {
+        return true;
+    }
+
+    @ListenToExit(exitName = PluginExitPoints.TECH_CONTROLLER_UI_EVENT_CHANNEL)
+    public void uiEventChannel(Object calledBy, Object[] args) {
+        String eventName = (String) args[0];
+        JSONObject request = (JSONObject) args[2];
+        Map<String, Object> responseMap = (Map<String, Object>) args[3];
+
+        try {
+            if("SB_BRIDGE_GET_PLUGIN_CONFIG".equals(eventName)) {
+                Map<String, Object> props = new HashMap<>();
+                props.put("DEVMODE", getProperty("DEVMODE", false));
+                responseMap.put("config", props);
+            }
+        } catch (Exception e) {
+            logger.error("Error occurred while processing request", e);
+            responseMap.put("error", e.getMessage());
+        }
     }
 
     @JSInject(targetScreen = "NGUI")
