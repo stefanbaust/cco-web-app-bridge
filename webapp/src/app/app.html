@@ -20,7 +20,7 @@
       <div class="receipt-header">
         <strong>Receipt {{ r.id || '' }}</strong>
         @if (r.businessTransactionDate) {
-          <span>{{ r.businessTransactionDate | date:'medium':'':'de-DE' }}</span>
+          <span>{{ r.businessTransactionDate | date:'medium':'':pos.locale() }}</span>
         }
       </div>
       <table>

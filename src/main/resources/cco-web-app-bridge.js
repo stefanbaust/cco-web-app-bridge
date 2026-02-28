@@ -55,6 +55,23 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
             const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
             return receiptStore.getReceiptModel();
         };
+
+        this._rpcHandlers['getLocale'] = () => {
+            try {
+                const userStore = this.pluginService.getContextInstance('UserStore');
+                const langCode = userStore.getUser()?.getLanguageCode();
+                if (langCode) return langCode;
+            } catch (e) {
+                console.warn('[WebAppBridge] Could not get user language:', e);
+            }
+            try {
+                const translationStore = this.pluginService.getContextInstance('TranslationStore');
+                return translationStore.getDefaultLanguage();
+            } catch (e) {
+                console.warn('[WebAppBridge] Could not get default language:', e);
+            }
+            return 'de';
+        };
     }
 
     // -------------------------------------------------------

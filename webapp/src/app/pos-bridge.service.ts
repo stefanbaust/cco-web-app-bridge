@@ -1,4 +1,4 @@
-import { Injectable, NgZone, OnDestroy } from '@angular/core';
+import { Injectable, NgZone, OnDestroy, signal } from '@angular/core';
 import { Observable, Subject, ReplaySubject } from 'rxjs';
 
 declare class POSBridge {
@@ -6,6 +6,7 @@ declare class POSBridge {
   ready(): Promise<void>;
   destroy(): void;
   getReceipt(): Promise<any>;
+  getLocale(): Promise<string>;
   pushEvent(eventType: string, eventData: any): void;
   on(event: string, callback: (data: any) => void): void;
   off(event: string, callback: (data: any) => void): void;
@@ -17,12 +18,18 @@ export class POSBridgeService implements OnDestroy {
   private readySubject = new ReplaySubject<void>(1);
   private eventSubjects = new Map<string, Subject<any>>();
 
+  readonly locale = signal('de');
   ready$ = this.readySubject.asObservable();
 
   constructor(private zone: NgZone) {
     this.bridge = new POSBridge();
     this.bridge.ready().then(() => {
       this.zone.run(() => this.readySubject.next());
+      this.bridge.getLocale().then((locale) => {
+        this.zone.run(() => this.locale.set(locale));
+      }).catch((e) => {
+        console.warn('[POSBridgeService] Could not fetch locale, using default:', e);
+      });
     });
   }
 
@@ -33,6 +40,10 @@ export class POSBridgeService implements OnDestroy {
 
   async getReceipt(): Promise<any> {
     return this.bridge.getReceipt();
+  }
+
+  async getLocale(): Promise<string> {
+    return this.bridge.getLocale();
   }
 
   pushEvent(eventType: string, eventData: any): void {

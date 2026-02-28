@@ -36,7 +36,7 @@ export class App implements OnInit, OnDestroy {
 
   private sub?: Subscription;
 
-  constructor(private pos: POSBridgeService) {}
+  constructor(protected pos: POSBridgeService) {}
 
   ngOnInit(): void {
     this.pos.ready$.subscribe(() => {
@@ -81,7 +81,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   formatCurrency(amount: number, currency?: string): string {
-    return new Intl.NumberFormat('de-DE', {
+    return new Intl.NumberFormat(this.pos.locale(), {
       style: 'currency',
       currency: currency || 'EUR',
     }).format(amount);
