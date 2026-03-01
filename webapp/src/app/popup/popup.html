@@ -42,14 +42,14 @@
               <td class="num">{{ item.quantity }} {{ item.quantityTypeCodeName || '' }}</td>
               <td class="num">{{ formatCurrency(item.unitGrossAmount, r.currency) }}</td>
               <td class="num">{{ (item.taxRate * 100).toFixed(0) }}%</td>
-              <td class="num">{{ formatCurrency(item.grossAmount, r.currency) }}</td>
+              <td class="num">{{ formatCurrency(item.paymentGrossAmount, r.currency) }}</td>
             </tr>
           }
         </tbody>
       </table>
       <div class="receipt-footer">
-        <span>Net: {{ formatCurrency(r.totalNetAmount, r.currency) }} | Tax: {{ formatCurrency(r.totalTaxAmount, r.currency) }}</span>
-        <span>Total: {{ formatCurrency(r.totalGrossAmount, r.currency) }}</span>
+        <span>Net: {{ formatCurrency(r.paymentNetAmount, r.currency) }} | Tax: {{ formatCurrency(r.paymentTaxAmount, r.currency) }}</span>
+        <span>Total: {{ formatCurrency(r.paymentGrossAmount, r.currency) }}</span>
       </div>
     } @else {
       <p class="empty-receipt">No items on receipt.</p>

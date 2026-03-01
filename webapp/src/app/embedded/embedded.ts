@@ -27,7 +27,7 @@ export class EmbeddedComponent implements OnInit, OnDestroy {
     });
 
     this.sub = this.pos.on('receiptChanged').subscribe((receipt: Receipt) => {
-      this.totalGrossAmount.set(receipt.totalGrossAmount);
+      this.totalGrossAmount.set(receipt.paymentGrossAmount);
       if (receipt.currency) {
         this.currency.set(receipt.currency);
       }

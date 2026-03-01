@@ -6,6 +6,7 @@ export interface SalesItem {
   unitGrossAmount: number;
   taxRate: number;
   grossAmount: number;
+  paymentGrossAmount: number;
 }
 
 export interface Receipt {
@@ -14,6 +15,9 @@ export interface Receipt {
   currency?: string;
   salesItems: SalesItem[];
   totalNetAmount: number;
+  paymentNetAmount: number;
   totalTaxAmount: number;
+  paymentTaxAmount: number;
   totalGrossAmount: number;
+  paymentGrossAmount: number;
 }
