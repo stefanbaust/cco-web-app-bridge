@@ -40,6 +40,10 @@ export class EmbeddedComponent implements OnInit, OnDestroy {
     this.pos.pushEvent('SHOW_MESSAGE', 'Hello from the iframe app!');
   }
 
+  openPopup(): void {
+    this.pos.pushEvent('SB_SHOW_WEBVIEW', {});
+  }
+
   formatCurrency(amount: number): string {
     return new Intl.NumberFormat(this.pos.locale(), {
       style: 'currency',
