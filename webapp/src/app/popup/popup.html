@@ -9,9 +9,11 @@
 </div>
 
 <div class="actions">
+  <input type="text" placeholder="Try typing here..."/>
   <button [disabled]="!connected()" (click)="sendMessage()">Show Message on POS</button>
   <button [disabled]="!connected()" (click)="addSalesItem()">Add SalesItem</button>
   <button [disabled]="!connected()" (click)="fetchReceipt()">Fetch Receipt</button>
+  <button [disabled]="!connected()" (click)="toggleKeyboard()">Toggle Keyboard</button>
 </div>
 
 @if (temperature() !== null) {

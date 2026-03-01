@@ -67,6 +67,13 @@ export class PopupComponent implements OnInit, OnDestroy {
     this.log('Sent SALESITEM_ADD');
   }
 
+  toggleKeyboard(): void {
+    this.pos.pushEvent('TOGGLE_KEYBOARD', {
+      active: false,
+    });
+    this.log('Sent TOGGLE_KEYBOARD');
+  }
+
   async fetchReceipt(): Promise<void> {
     try {
       this.log('Fetching receipt...');
