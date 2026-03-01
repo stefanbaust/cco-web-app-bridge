@@ -1,5 +1,6 @@
 <div class="embedded">
   <button [disabled]="!connected()" (click)="sendMessage()">Show Message</button>
+  <button [disabled]="!connected()" (click)="openPopup()">Open Popup</button>
 
   @if (totalGrossAmount() !== null) {
     <div class="total">
