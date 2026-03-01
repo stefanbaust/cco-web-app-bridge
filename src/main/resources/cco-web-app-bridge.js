@@ -204,6 +204,8 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
             resultFunction: (positive) => {
                 console.log('Iframe popup closed. Cancelled:', !positive);
                 this.iframeWindow = null;
+                const globalInputHandler = this.pluginService.getContextInstance('KeyboardTools');
+                globalInputHandler.getInputHandler().popPrimaryTarget();
             }
         });
 
@@ -213,6 +215,15 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
             if (iframe) {
                 this.iframeWindow = iframe.contentWindow;
             }
+            const globalInputHandler = this.pluginService.getContextInstance('KeyboardTools');
+            globalInputHandler.getInputHandler().pushPrimaryTarget({
+                getValue: () => {
+                    return '';
+                },
+                appendCharCode: (keyCode, newValue) => {
+                    this._sendToIframe({ type: 'KEYBOARD_INPUT', keyCode });
+                }
+            })
         }, 0);
     }
 
@@ -241,6 +252,12 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
 
             case 'PUSH_EVENT':
                 if (data.payload?.eventType) {
+                    if(data.payload?.eventType === 'TOGGLE_KEYBOARD') {
+                        // workaround
+                        data.payload.eventData.event = {
+                            preventDefault: () => {}
+                        }
+                    }
                     this.eventBus.push(data.payload.eventType, data.payload.eventData);
                 }
                 break;

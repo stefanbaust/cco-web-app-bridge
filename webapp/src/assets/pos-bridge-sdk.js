@@ -190,6 +190,18 @@ class POSBridge {
                 break;
             }
 
+            case 'KEYBOARD_INPUT': {
+                const el = document.activeElement;
+                if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+                    if (data.keyCode === 8) {
+                        document.execCommand('delete', false);
+                    } else {
+                        document.execCommand('insertText', false, String.fromCharCode(data.keyCode));
+                    }
+                }
+                break;
+            }
+
             case 'POS_EVENT': {
                 const listeners = this._eventListeners.get(data.event);
                 if (listeners) {
