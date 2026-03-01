@@ -113,6 +113,14 @@ public class WebAppBridgePlugin extends BasePlugin {
             serveIndexHtml(response);
         } else if ("webAppResource".equals(action)) {
             serveResource(request, response);
+        } else if ("webAppBridgeConfig".equals(action)) {
+            JSONObject config = new JSONObject();
+            config.put("DEVMODE", getProperty("DEVMODE", false));
+            byte[] content = config.toString().getBytes(StandardCharsets.UTF_8);
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.setContentLength(content.length);
+            response.getOutputStream().write(content);
         }
     }
 

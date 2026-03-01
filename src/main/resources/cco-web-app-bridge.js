@@ -26,7 +26,7 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
 
         const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
         receiptStore.addObserver(this);
-        //this.pluginConfig = await this.fetchPluginConfig();
+        this.pluginConfig = await this.fetchPluginConfig();
         this.setupCustomerComponent();
     }
 
@@ -36,7 +36,7 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         const basePath = window.location.pathname.replace(/_\/$/, '/');
         let url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
 
-        if(true === true) {
+        if(this.pluginConfig?.DEVMODE === true) {
             url = 'http://localhost:4200'
         }
 
@@ -96,10 +96,12 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
     }
 
     async fetchPluginConfig() {
-        const pluginConfigResponse = await this.pluginService.backendPluginEvent('SB_BRIDGE_GET_PLUGIN_CONFIG', {});
-        console.info('Config fetched loaded');
-        console.info('Plugin config loaded', pluginConfigResponse.payload.config);
-        return pluginConfigResponse.payload.config;
+        const basePath = window.location.pathname.replace(/_\/$/, '/');
+        const url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeConfig`;
+        const response = await fetch(url);
+        const config = await response.json();
+        console.info('Plugin config loaded', config);
+        return config;
     }
 
     observe(store, payload) {
