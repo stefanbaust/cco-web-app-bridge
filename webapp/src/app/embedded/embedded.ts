@@ -2,7 +2,7 @@ import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { POSBridgeService } from '../pos-bridge.service';
-import {Receipt, SalesItem} from '../shared/receipt.model';
+import { Receipt, SalesItem } from '../shared/receipt.model';
 
 @Component({
   selector: 'app-embedded',

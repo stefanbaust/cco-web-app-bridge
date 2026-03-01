@@ -14,6 +14,15 @@
   <button [disabled]="!connected()" (click)="fetchReceipt()">Fetch Receipt</button>
 </div>
 
+@if (temperature() !== null) {
+  <div class="weather-card">
+    <div class="weather-title">Berlin Weather</div>
+    <div class="weather-temp">{{ temperature() }} °C</div>
+    <div class="weather-desc">{{ weatherDescription() }}</div>
+    <div class="weather-wind">Wind: {{ windSpeed() }} km/h</div>
+  </div>
+}
+
 @if (receipt(); as r) {
   <div class="receipt-container">
     @if (r.salesItems && r.salesItems.length > 0) {

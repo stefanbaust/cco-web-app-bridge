@@ -10,6 +10,11 @@ import com.sap.scco.ap.plugin.helper.PluginExitPoints;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import net.sf.json.JSONObject;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,10 +25,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class WebAppBridgePlugin extends BasePlugin {
 
     private static Logger logger = LoggerFactory.getLogger(WebAppBridgePlugin.class);
+
+    private static final OkHttpClient httpClient = new OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build();
 
     private static final Map<String, String> CONTENT_TYPES = Map.ofEntries(
             Map.entry("js", "application/javascript"),
@@ -121,6 +132,62 @@ public class WebAppBridgePlugin extends BasePlugin {
             response.setCharacterEncoding("UTF-8");
             response.setContentLength(content.length);
             response.getOutputStream().write(content);
+        }
+    }
+
+    @ListenToExit(exitName = "PluginServlet.callback.post")
+    public void pluginServletPost(Object caller, Object[] args) throws Exception {
+        HttpServletRequest request = (HttpServletRequest) args[0];
+        HttpServletResponse response = (HttpServletResponse) args[1];
+
+        String action = request.getParameter("action");
+
+        if ("webAppProxy".equals(action)) {
+            handleProxy(request, response);
+        }
+    }
+
+    private void handleProxy(HttpServletRequest servletRequest, HttpServletResponse servletResponse) throws IOException {
+        String jsonBody = new String(servletRequest.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        JSONObject payload = JSONObject.fromObject(jsonBody);
+
+        String targetUrl = payload.getString("url");
+        String method = payload.optString("method", "GET").toUpperCase();
+
+        // Build OkHttp request
+        Request.Builder reqBuilder = new Request.Builder().url(targetUrl);
+
+        // Forward headers from payload
+        if (payload.has("headers")) {
+            JSONObject headers = payload.getJSONObject("headers");
+            for (Object key : headers.keySet()) {
+                String headerName = (String) key;
+                reqBuilder.addHeader(headerName, headers.getString(headerName));
+            }
+        }
+
+        // Set method and body
+        if ("GET".equals(method)) {
+            reqBuilder.get();
+        } else {
+            String body = payload.optString("body", "");
+            MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
+            reqBuilder.method(method, RequestBody.create(body, mediaType));
+        }
+
+        try (Response upstreamResponse = httpClient.newCall(reqBuilder.build()).execute()) {
+            servletResponse.setStatus(upstreamResponse.code());
+
+            // Forward content-type
+            String contentType = upstreamResponse.header("Content-Type");
+            if (contentType != null) {
+                servletResponse.setContentType(contentType);
+            }
+
+            // Write response body
+            byte[] responseBody = upstreamResponse.body() != null ? upstreamResponse.body().bytes() : new byte[0];
+            servletResponse.setContentLength(responseBody.length);
+            servletResponse.getOutputStream().write(responseBody);
         }
     }
 
