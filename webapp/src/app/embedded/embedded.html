@@ -1,0 +1,9 @@
+<div class="embedded">
+  <button [disabled]="!connected()" (click)="sendMessage()">Show Message</button>
+
+  @if (totalGrossAmount() !== null) {
+    <div class="total">
+      Total: {{ formatCurrency(totalGrossAmount()!) }}
+    </div>
+  }
+</div>

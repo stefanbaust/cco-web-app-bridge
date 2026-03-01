@@ -34,10 +34,10 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         const propStore = this.pluginService.getContextInstance('DynamicPropertiesStore');
 
         const basePath = window.location.pathname.replace(/_\/$/, '/');
-        let url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
+        let url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet#/embedded`;
 
         if(this.pluginConfig?.DEVMODE === true) {
-            url = 'http://localhost:4200'
+            url = 'http://localhost:4200#/embedded'
         }
 
         try {
@@ -164,10 +164,10 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
 
     showIframePopup() {
         const basePath = window.location.pathname.replace(/_\/$/, '/');
-        let url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
+        let url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet#/popup`;
 
         if(this.pluginConfig.DEVMODE === true) {
-            url = 'http://localhost:4200'
+            url = 'http://localhost:4200#/popup'
         }
 
         try {
