@@ -108,6 +108,13 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         if (store instanceof cco.ReceiptStore) {
             console.log('Current state', payload);
             this.sendEvent('receiptChanged', store.getReceiptModel());
+
+            const selectedItem = store.getSelectedItem();
+            if (selectedItem) {
+                this.sendEvent('selectedItem', store.getSelectedItem());
+            } else {
+                this.sendEvent('selectedItem', null);
+            }
         }
     }
 
