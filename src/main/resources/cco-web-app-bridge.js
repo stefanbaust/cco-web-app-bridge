@@ -9,6 +9,7 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         this.pluginService = pluginService;
         this.eventBus = eventBus;
         this.iframeWindow = null;
+        this.iframeIdEmbedded = 'webAppBridgeIframeEmbedded';
         this.allowedOrigin = null;
 
         this._rpcHandlers = {};
@@ -18,14 +19,89 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
         window.webAppBridgePluginRef = this;
     }
 
-    init() {
+    async init() {
         this.eventBus.subscribe(this);
         this._boundMessageHandler = this._handlePostMessage.bind(this);
         window.addEventListener('message', this._boundMessageHandler);
 
         const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
         receiptStore.addObserver(this);
+        this.pluginConfig = await this.fetchPluginConfig();
+        this.setupCustomerComponent();
+    }
 
+    setupCustomerComponent() {
+        const propStore = this.pluginService.getContextInstance('DynamicPropertiesStore');
+
+        const basePath = window.location.pathname.replace(/_\/$/, '/');
+        let url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
+
+        if(this.pluginConfig?.DEVMODE === true) {
+            url = 'http://localhost:4200'
+        }
+
+        try {
+            this.allowedOrigin = new URL(url).origin;
+        } catch (e) {
+            console.error('Invalid iframe URL:', url);
+            return;
+        }
+
+        const iframeId = this.iframeIdEmbedded;
+
+        const customerComponent = {
+            component: 'GridLayoutComponent',
+            props: {
+                rows: 9,
+                cols: 9,
+                elements: [
+                    {
+                        index: [0, 0],
+                        hspan: 9,
+                        vspan: 9,
+                        content: {
+                            component: 'HtmlComponent',
+                            props: {
+                                content: `
+                                    <iframe
+                                        id="${iframeId}"
+                                        src="${url}"
+                                        style="width:100%; height:100%; border:none;"
+                                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                                    ></iframe>
+                                    `
+                            }
+                        }
+                    }
+                ]
+            }
+        };
+
+
+        const props = propStore.getDynamicProperties('SB_WEBVIEW_EMBEDDED');
+        if (props != null) {
+            props.setAndEmitPropertiesIfChanged({
+                content: customerComponent
+            });
+        } else {
+            propStore.addDynamicProperties('SB_WEBVIEW_EMBEDDED', {
+                content: customerComponent
+            });
+        }
+
+        setTimeout(() => {
+            const iframe = document.getElementById(iframeId);
+            console.log('got Iframe:', iframe);
+        }, 0);
+    }
+
+    async fetchPluginConfig() {
+        const basePath = window.location.pathname.replace(/_\/$/, '/');
+        const url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeConfig`;
+        const response = await fetch(url);
+        const config = await response.json();
+        console.info('Plugin config loaded', config);
+        return config;
     }
 
     observe(store, payload) {
@@ -48,6 +124,23 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
             const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
             return receiptStore.getReceiptModel();
         };
+
+        this._rpcHandlers['getLocale'] = () => {
+            try {
+                const userStore = this.pluginService.getContextInstance('UserStore');
+                const langCode = userStore.getUser()?.getLanguageCode();
+                if (langCode) return langCode;
+            } catch (e) {
+                console.warn('[WebAppBridge] Could not get user language:', e);
+            }
+            try {
+                const translationStore = this.pluginService.getContextInstance('TranslationStore');
+                return translationStore.getDefaultLanguage();
+            } catch (e) {
+                console.warn('[WebAppBridge] Could not get default language:', e);
+            }
+            return 'de';
+        };
     }
 
     // -------------------------------------------------------
@@ -55,6 +148,13 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
     // -------------------------------------------------------
 
     handleEvent(event) {
+        if (event.getType() === 'WORKCENTER_LOADED' && event.getSource() !== this.pluginEventSourceIdentifier) {
+            if (!this.pluginConfig) {
+                this.fetchPluginConfig().then((config) => {
+                    this.pluginConfig = config;
+                });
+            }
+        }
         switch (event.getType()) {
             case 'SB_SHOW_WEBVIEW':
                 this.showIframePopup();
@@ -64,7 +164,11 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
 
     showIframePopup() {
         const basePath = window.location.pathname.replace(/_\/$/, '/');
-        const url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
+        let url = `${window.location.origin}${basePath}PluginServlet?action=webAppBridgeServlet`;
+
+        if(this.pluginConfig.DEVMODE === true) {
+            url = 'http://localhost:4200'
+        }
 
         try {
             this.allowedOrigin = new URL(url).origin;
@@ -187,6 +291,14 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
             this.iframeWindow.postMessage(message, this.allowedOrigin);
         } else {
             console.warn('[WebAppBridge] No iframe connected, cannot send:', message);
+        }
+
+        const iframeEmbedded  = document.getElementById(this.iframeIdEmbedded);
+        if (iframeEmbedded && this.allowedOrigin) {
+            const iframeEmbeddedWindow = iframeEmbedded.contentWindow;
+            iframeEmbeddedWindow.postMessage(message, this.allowedOrigin);
+        } else {
+            console.warn('[WebAppBridge] No embedded iframe connected, cannot send:', message);
         }
     }
 

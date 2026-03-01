@@ -73,6 +73,14 @@ class POSBridge {
     }
 
     /**
+     * Get the POS user locale (e.g. 'de', 'en', 'fr').
+     * @returns {Promise<string>} The locale code
+     */
+    getLocale() {
+        return this._rpc('getLocale');
+    }
+
+    /**
      * Push an event to the POS event bus.
      * @param {string} eventType - The event type to push
      * @param {*} eventData - The event data

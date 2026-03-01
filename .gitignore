@@ -43,3 +43,8 @@ build/
 log
 derby.log
 tomcat.8080
+
+### Node / Angular ###
+webapp/node/
+webapp/node_modules/
+webapp/.angular/
