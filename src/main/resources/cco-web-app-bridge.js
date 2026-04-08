@@ -132,6 +132,11 @@ Plugin.WebAppBridgePlugin = class WebAppBridgePlugin {
             return receiptStore.getReceiptModel();
         };
 
+        this._rpcHandlers['isItemSelected'] = (salesItemKey) => {
+            const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
+            return receiptStore.isItemSelected(salesItemKey);
+        };
+
         this._rpcHandlers['getLocale'] = () => {
             try {
                 const userStore = this.pluginService.getContextInstance('UserStore');

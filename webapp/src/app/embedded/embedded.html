@@ -5,12 +5,12 @@
   </div>
   @if (selectedItem(); as selectedItem) {
     <div class="selectedItem">
-      {{ selectedItem.description }}
+      {{ selectedItem.description }}: {{ formatCurrency(selectedItem.paymentGrossAmount) }}
     </div>
   }
   @if (totalGrossAmount() !== null) {
     <div class="total">
-      {{ formatCurrency(totalGrossAmount()!) }}
+      Total: {{ formatCurrency(totalGrossAmount()!) }}
     </div>
   }
 </div>

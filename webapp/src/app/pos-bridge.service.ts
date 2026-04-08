@@ -6,6 +6,7 @@ declare class POSBridge {
   ready(): Promise<void>;
   destroy(): void;
   getReceipt(): Promise<any>;
+  isItemSelected(salesItemKey: string): Promise<any>;
   getLocale(): Promise<string>;
   pushEvent(eventType: string, eventData: any): void;
   on(event: string, callback: (data: any) => void): void;
@@ -25,21 +26,28 @@ export class POSBridgeService implements OnDestroy {
     this.bridge = new POSBridge();
     this.bridge.ready().then(() => {
       this.zone.run(() => this.readySubject.next());
-      this.bridge.getLocale().then((locale) => {
-        this.zone.run(() => this.locale.set(locale));
-      }).catch((e) => {
-        console.warn('[POSBridgeService] Could not fetch locale, using default:', e);
-      });
+      this.bridge
+        .getLocale()
+        .then((locale) => {
+          this.zone.run(() => this.locale.set(locale));
+        })
+        .catch((e) => {
+          console.warn('[POSBridgeService] Could not fetch locale, using default:', e);
+        });
     });
   }
 
   ngOnDestroy(): void {
     this.bridge.destroy();
-    this.eventSubjects.forEach(s => s.complete());
+    this.eventSubjects.forEach((s) => s.complete());
   }
 
   async getReceipt(): Promise<any> {
     return this.bridge.getReceipt();
+  }
+
+  async isItemSelected(salesItemKey: string): Promise<any> {
+    return this.bridge.isItemSelected(salesItemKey);
   }
 
   async getLocale(): Promise<string> {

@@ -22,8 +22,21 @@ export class EmbeddedComponent implements OnInit, OnDestroy {
   constructor(private pos: POSBridgeService) {}
 
   ngOnInit(): void {
-    this.pos.ready$.subscribe(() => {
+    this.pos.ready$.subscribe(async () => {
       this.connected.set(true);
+      const receipt = await this.pos.getReceipt();
+      console.log('receipt', receipt);
+      this.totalGrossAmount.set(receipt.paymentGrossAmount);
+      if (receipt.currency) {
+        this.currency.set(receipt.currency);
+      }
+
+      for(const salesItem of receipt.salesItems) {
+        const selected = await this.pos.isItemSelected(salesItem.key);
+        if(selected) {
+          this.selectedItem.set(salesItem);
+        }
+      }
     });
 
     this.sub = this.pos.on('receiptChanged').subscribe((receipt: Receipt) => {

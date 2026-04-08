@@ -60,7 +60,7 @@ export class PopupComponent implements OnInit, OnDestroy {
 
   addSalesItem(): void {
     this.pos.pushEvent('SALESITEM_ADD', {
-      materialId: 'JAC.49000',
+      materialId: '79',
       quantity: 1,
       split: true,
     });
