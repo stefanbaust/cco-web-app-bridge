@@ -3,10 +3,6 @@ package dev.baust.cco.webapp.bridge;
 import com.sap.scco.ap.plugin.BasePlugin;
 import com.sap.scco.ap.plugin.PluginConfigurationDTO;
 import com.sap.scco.ap.plugin.PluginConfigurationType;
-import com.sap.scco.ap.plugin.annotation.ListenToExit;
-import com.sap.scco.ap.plugin.annotation.ui.CSSInject;
-import com.sap.scco.ap.plugin.annotation.ui.JSInject;
-import com.sap.scco.ap.plugin.helper.PluginExitPoints;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import net.sf.json.JSONObject;
@@ -18,6 +14,7 @@ import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -27,9 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class WebAppBridgePlugin extends BasePlugin {
+public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
 
-    private static Logger logger = LoggerFactory.getLogger(WebAppBridgePlugin.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractWebAppBridgePlugin.class);
 
     private static final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
@@ -54,14 +51,21 @@ public class WebAppBridgePlugin extends BasePlugin {
             Map.entry("txt", "text/plain")
     );
 
-    @Override
-    public String getId() {
-        return "WebAppBridgePlugin";
-    }
+    protected final String prefix;
 
-    @Override
-    public String getName() {
-        return "WebAppBridgePlugin";
+    private final String servletAction;
+    private final String resourceAction;
+    private final String configAction;
+    private final String proxyAction;
+    private final String configEventName;
+
+    protected AbstractWebAppBridgePlugin(String prefix) {
+        this.prefix = prefix;
+        this.servletAction = prefix + "Servlet";
+        this.resourceAction = prefix + "Resource";
+        this.configAction = prefix + "Config";
+        this.proxyAction = prefix + "Proxy";
+        this.configEventName = prefix + "_GET_PLUGIN_CONFIG";
     }
 
     @Override
@@ -81,50 +85,41 @@ public class WebAppBridgePlugin extends BasePlugin {
         return true;
     }
 
-    @ListenToExit(exitName = PluginExitPoints.TECH_CONTROLLER_UI_EVENT_CHANNEL)
-    public void uiEventChannel(Object calledBy, Object[] args) {
-        String eventName = (String) args[0];
-        JSONObject request = (JSONObject) args[2];
-        Map<String, Object> responseMap = (Map<String, Object>) args[3];
+    // -------------------------------------------------------
+    // JS / CSS injection helpers
+    // -------------------------------------------------------
 
+    protected InputStream[] getBridgeJsInject() {
         try {
-            if("SB_BRIDGE_GET_PLUGIN_CONFIG".equals(eventName)) {
-                Map<String, Object> props = new HashMap<>();
-                props.put("DEVMODE", getProperty("DEVMODE", false));
-                responseMap.put("config", props);
+            InputStream raw = getClass().getResourceAsStream("/cco-web-app-bridge.js");
+            if (raw == null) {
+                logger.error("cco-web-app-bridge.js not found on classpath");
+                return new InputStream[0];
             }
-        } catch (Exception e) {
-            logger.error("Error occurred while processing request", e);
-            responseMap.put("error", e.getMessage());
+            String js = new String(raw.readAllBytes(), StandardCharsets.UTF_8);
+            js = js.replace("__PREFIX__", prefix);
+            return new InputStream[]{new ByteArrayInputStream(js.getBytes(StandardCharsets.UTF_8))};
+        } catch (IOException e) {
+            logger.error("Failed to read cco-web-app-bridge.js", e);
+            return new InputStream[0];
         }
     }
 
-    @JSInject(targetScreen = "NGUI")
-    public InputStream[] jsInject() {
-        return new InputStream[]{
-                this.getClass().getResourceAsStream("/cco-web-app-bridge.js")
-        };
-    }
+    // -------------------------------------------------------
+    // Servlet handlers
+    // -------------------------------------------------------
 
-    @CSSInject(targetScreen = "NGUI")
-    public InputStream[] cssInject() {
-        return new InputStream[]{
-                this.getClass().getResourceAsStream("/cco-web-app-bridge.css")
-        };
-    }
-
-    @ListenToExit(exitName = "PluginServlet.callback.get")
-    public void pluginServletGet(Object caller, Object[] args) throws Exception {
+    protected void handleBridgeServletGet(Object caller, Object[] args) throws Exception {
         HttpServletRequest request = (HttpServletRequest) args[0];
         HttpServletResponse response = (HttpServletResponse) args[1];
 
         String action = request.getParameter("action");
 
-        if ("webAppBridgeServlet".equals(action)) {
+        if (servletAction.equals(action)) {
             serveIndexHtml(response);
-        } else if ("webAppResource".equals(action)) {
+        } else if (resourceAction.equals(action)) {
             serveResource(request, response);
-        } else if ("webAppBridgeConfig".equals(action)) {
+        } else if (configAction.equals(action)) {
             JSONObject config = new JSONObject();
             config.put("DEVMODE", getProperty("DEVMODE", false));
             byte[] content = config.toString().getBytes(StandardCharsets.UTF_8);
@@ -135,17 +130,41 @@ public class WebAppBridgePlugin extends BasePlugin {
         }
     }
 
-    @ListenToExit(exitName = "PluginServlet.callback.post")
-    public void pluginServletPost(Object caller, Object[] args) throws Exception {
+    protected void handleBridgeServletPost(Object caller, Object[] args) throws Exception {
         HttpServletRequest request = (HttpServletRequest) args[0];
         HttpServletResponse response = (HttpServletResponse) args[1];
 
         String action = request.getParameter("action");
 
-        if ("webAppProxy".equals(action)) {
+        if (proxyAction.equals(action)) {
             handleProxy(request, response);
         }
     }
+
+    // -------------------------------------------------------
+    // UI Event Channel handler
+    // -------------------------------------------------------
+
+    protected void handleBridgeUiEventChannel(Object calledBy, Object[] args) {
+        String eventName = (String) args[0];
+        JSONObject request = (JSONObject) args[2];
+        Map<String, Object> responseMap = (Map<String, Object>) args[3];
+
+        try {
+            if (configEventName.equals(eventName)) {
+                Map<String, Object> props = new HashMap<>();
+                props.put("DEVMODE", getProperty("DEVMODE", false));
+                responseMap.put("config", props);
+            }
+        } catch (Exception e) {
+            logger.error("Error occurred while processing request", e);
+            responseMap.put("error", e.getMessage());
+        }
+    }
+
+    // -------------------------------------------------------
+    // Internal helpers
+    // -------------------------------------------------------
 
     private void handleProxy(HttpServletRequest servletRequest, HttpServletResponse servletResponse) throws IOException {
         String jsonBody = new String(servletRequest.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
@@ -154,10 +173,8 @@ public class WebAppBridgePlugin extends BasePlugin {
         String targetUrl = payload.getString("url");
         String method = payload.optString("method", "GET").toUpperCase();
 
-        // Build OkHttp request
         Request.Builder reqBuilder = new Request.Builder().url(targetUrl);
 
-        // Forward headers from payload
         if (payload.has("headers")) {
             JSONObject headers = payload.getJSONObject("headers");
             for (Object key : headers.keySet()) {
@@ -166,7 +183,6 @@ public class WebAppBridgePlugin extends BasePlugin {
             }
         }
 
-        // Set method and body
         if ("GET".equals(method)) {
             reqBuilder.get();
         } else {
@@ -178,13 +194,11 @@ public class WebAppBridgePlugin extends BasePlugin {
         try (Response upstreamResponse = httpClient.newCall(reqBuilder.build()).execute()) {
             servletResponse.setStatus(upstreamResponse.code());
 
-            // Forward content-type
             String contentType = upstreamResponse.header("Content-Type");
             if (contentType != null) {
                 servletResponse.setContentType(contentType);
             }
 
-            // Write response body
             byte[] responseBody = upstreamResponse.body() != null ? upstreamResponse.body().bytes() : new byte[0];
             servletResponse.setContentLength(responseBody.length);
             servletResponse.getOutputStream().write(responseBody);
@@ -201,9 +215,8 @@ public class WebAppBridgePlugin extends BasePlugin {
 
             String html = new String(is.readAllBytes(), StandardCharsets.UTF_8);
 
-            // Rewrite relative asset paths to route through the servlet resource handler
-            html = html.replaceAll("src=\"([^\"]+)\"", "src=\"PluginServlet?action=webAppResource&path=$1\"");
-            html = html.replaceAll("href=\"([^\"]+\\.css)\"", "href=\"PluginServlet?action=webAppResource&path=$1\"");
+            html = html.replaceAll("src=\"([^\"]+)\"", "src=\"PluginServlet?action=" + resourceAction + "&path=$1\"");
+            html = html.replaceAll("href=\"([^\"]+\\.css)\"", "href=\"PluginServlet?action=" + resourceAction + "&path=$1\"");
 
             byte[] content = html.getBytes(StandardCharsets.UTF_8);
             response.setContentType("text/html");

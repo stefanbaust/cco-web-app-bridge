@@ -6,18 +6,12 @@
 <groupId>dev.baust.cco.webapp.bridge</groupId>
 <artifactId>cco-web-app-bridge</artifactId>
 <version>1.0-SNAPSHOT</version>
+<packaging>jar</packaging>
 <properties>
-    <sap.scco.pluginClass>dev.baust.cco.webapp.bridge.WebAppBridgePlugin</sap.scco.pluginClass>
-    <sap.scco.POSVersions>2.0 FP21, 3.0 FP2502, 3.0 FP2503, n/a</sap.scco.POSVersions>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
-
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-    <node.version>v22.14.0</node.version>
-    <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
 </properties>
-<!-- Dependencies-->
 <dependencies>
     <dependency>
         <groupId>com.sap.customercheckout.pos</groupId>
@@ -67,99 +61,4 @@
         <scope>test</scope>
     </dependency>
 </dependencies>
-<build>
-    <resources>
-        <resource>
-            <directory>src/main/resources</directory>
-        </resource>
-        <resource>
-            <directory>target/generated-resources</directory>
-        </resource>
-    </resources>
-    <!-- Build Plugins-->
-    <plugins>
-        <plugin>
-            <groupId>com.github.eirslett</groupId>
-            <artifactId>frontend-maven-plugin</artifactId>
-            <version>${frontend-maven-plugin.version}</version>
-            <configuration>
-                <workingDirectory>webapp</workingDirectory>
-            </configuration>
-            <executions>
-                <execution>
-                    <id>install-node-and-npm</id>
-                    <goals>
-                        <goal>install-node-and-npm</goal>
-                    </goals>
-                    <phase>generate-resources</phase>
-                    <configuration>
-                        <nodeVersion>${node.version}</nodeVersion>
-                    </configuration>
-                </execution>
-                <execution>
-                    <id>npm-install</id>
-                    <goals>
-                        <goal>npm</goal>
-                    </goals>
-                    <phase>generate-resources</phase>
-                    <configuration>
-                        <arguments>install</arguments>
-                    </configuration>
-                </execution>
-                <execution>
-                    <id>npm-build</id>
-                    <goals>
-                        <goal>npm</goal>
-                    </goals>
-                    <phase>generate-resources</phase>
-                    <configuration>
-                        <arguments>run build -- --configuration production</arguments>
-                    </configuration>
-                </execution>
-            </executions>
-        </plugin>
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-shade-plugin</artifactId>
-            <version>3.6.0</version>
-            <executions>
-                <execution>
-                    <phase>package</phase>
-                    <goals>
-                        <goal>shade</goal>
-                    </goals>
-                </execution>
-            </executions>
-            <configuration>
-                <filters>
-                    <filter>
-                        <artifact>*:*</artifact>
-                        <excludes>
-                            <exclude>META-INF/*.SF</exclude>
-                            <exclude>META-INF/*.DSA</exclude>
-                            <exclude>META-INF/*.RSA</exclude>
-                        </excludes>
-                    </filter>
-                </filters>
-            </configuration>
-        </plugin>
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-jar-plugin</artifactId>
-            <version>3.4.2</version>
-            <configuration>
-                <archive>
-                    <manifest>
-                        <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                    </manifest>
-                    <manifestEntries>
-                        <pluginName>${project.name}</pluginName>
-                        <cashdeskPOSPlugin>${sap.scco.pluginClass}</cashdeskPOSPlugin>
-                        <cashDeskVersions>${sap.scco.POSVersions}</cashDeskVersions>
-                    </manifestEntries>
-                </archive>
-            </configuration>
-        </plugin>
-    </plugins>
-</build>
 </project>
