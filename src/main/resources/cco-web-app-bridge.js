@@ -1,6 +1,7 @@
 Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
 
     pluginEventSourceIdentifier = '__PREFIX__BridgePlugin';
+    channel = '__PREFIX__';
 
     constructor(pluginService, eventBus) {
         this.T = pluginService.getContextInstance('T');
@@ -10,6 +11,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         this.eventBus = eventBus;
         this.iframeWindow = null;
         this.iframeIdEmbedded = '__PREFIX___iframe_embedded';
+        this.iframeIdPopup = '__PREFIX___iframe_popup';
         this.allowedOrigin = null;
 
         this._rpcHandlers = {};
@@ -189,7 +191,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
             return;
         }
 
-        const iframeId = '__PREFIX___iframe_popup';
+        const iframeId = this.iframeIdPopup;
 
         this.eventBus.push('SHOW_GENERIC_POPUP', {
             title: 'Web App',
@@ -244,13 +246,21 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         const data = event.data;
         if (!data || !data.type) return;
 
+        // IFRAME_READY is the discovery message — no channel yet.
+        // Verify it came from our own iframe by checking event.source.
+        if (data.type === 'IFRAME_READY') {
+            if (this._isOurIframe(event.source)) {
+                this._sendToIframe({ type: 'BRIDGE_READY' });
+            }
+            return;
+        }
+
+        // All other messages require channel match
+        if (data.channel !== this.channel) return;
+
         console.log('[__PREFIX__Bridge] Received from iframe:', data);
 
         switch (data.type) {
-            case 'IFRAME_READY':
-                this._sendToIframe({ type: 'BRIDGE_READY' });
-                break;
-
             case 'RPC_REQUEST':
                 this._handleRpcRequest(data);
                 break;
@@ -273,6 +283,15 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
             default:
                 console.warn('[__PREFIX__Bridge] Unknown message type:', data.type);
         }
+    }
+
+    _isOurIframe(source) {
+        if (this.iframeWindow && this.iframeWindow === source) return true;
+        const embedded = document.getElementById(this.iframeIdEmbedded);
+        if (embedded && embedded.contentWindow === source) return true;
+        const popup = document.getElementById(this.iframeIdPopup);
+        if (popup && popup.contentWindow === source) return true;
+        return false;
     }
 
     _handleRpcRequest(data) {
@@ -315,6 +334,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
     // -------------------------------------------------------
 
     _sendToIframe(message) {
+        message.channel = this.channel;
         console.log('[__PREFIX__Bridge] Send to iframe:', message);
         if (this.iframeWindow && this.allowedOrigin) {
             this.iframeWindow.postMessage(message, this.allowedOrigin);

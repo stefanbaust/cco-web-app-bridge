@@ -14,6 +14,7 @@
 class POSBridge {
   constructor(options = {}) {
     this._targetOrigin = options.targetOrigin || '*';
+    this._channel = options.channel || null;
     this._timeout = options.timeout || 10000;
     this._pendingRequests = new Map();
     this._eventListeners = new Map();
@@ -144,6 +145,9 @@ class POSBridge {
   }
 
   _send(message) {
+    if (this._channel) {
+      message.channel = this._channel;
+    }
     window.parent.postMessage(message, this._targetOrigin);
   }
 
@@ -175,8 +179,13 @@ class POSBridge {
     const data = event.data;
     if (!data || !data.type) return;
 
+    if (this._channel && data.channel !== this._channel) return;
+
     switch (data.type) {
       case 'BRIDGE_READY':
+        if (!this._channel && data.channel) {
+          this._channel = data.channel;
+        }
         this._bridgeReady = true;
         if (this._readyResolve) {
           this._readyResolve();

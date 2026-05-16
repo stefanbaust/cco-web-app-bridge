@@ -11,6 +11,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
@@ -51,6 +53,13 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
             Map.entry("txt", "text/plain")
     );
 
+    private static final Set<String> STRIPPED_HEADERS = Set.of(
+            "x-frame-options",
+            "content-security-policy",
+            "x-content-type-options",
+            "transfer-encoding"
+    );
+
     protected final String prefix;
 
     private final String servletAction;
@@ -58,14 +67,35 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
     private final String configAction;
     private final String proxyAction;
     private final String configEventName;
+    private final String remoteBaseUrl;
 
     protected AbstractWebAppBridgePlugin(String prefix) {
+        this(prefix, null);
+    }
+
+    protected AbstractWebAppBridgePlugin(String prefix, String remoteBaseUrl) {
         this.prefix = prefix;
+        this.remoteBaseUrl = normalizeBaseUrl(remoteBaseUrl);
         this.servletAction = prefix + "Servlet";
         this.resourceAction = prefix + "Resource";
         this.configAction = prefix + "Config";
         this.proxyAction = prefix + "Proxy";
         this.configEventName = prefix + "_GET_PLUGIN_CONFIG";
+    }
+
+    protected String getRemoteBaseUrl() {
+        return remoteBaseUrl;
+    }
+
+    private boolean isRemoteMode() {
+        return getRemoteBaseUrl() != null;
+    }
+
+    private static String normalizeBaseUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return null;
+        }
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     @Override
@@ -205,7 +235,19 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
         }
     }
 
+    // -------------------------------------------------------
+    // Index HTML serving
+    // -------------------------------------------------------
+
     private void serveIndexHtml(HttpServletResponse response) throws IOException {
+        if (isRemoteMode()) {
+            serveRemoteIndexHtml(response);
+        } else {
+            serveLocalIndexHtml(response);
+        }
+    }
+
+    private void serveLocalIndexHtml(HttpServletResponse response) throws IOException {
         try (InputStream is = this.getClass().getResourceAsStream("/app/index.html")) {
             if (is == null) {
                 response.setStatus(HttpServletResponse.SC_NOT_FOUND);
@@ -226,15 +268,83 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
         }
     }
 
+    private void serveRemoteIndexHtml(HttpServletResponse response) throws IOException {
+        String url = getRemoteBaseUrl() + "/index.html";
+        Request request = new Request.Builder().url(url).get().build();
+
+        try (Response upstreamResponse = httpClient.newCall(request).execute()) {
+            if (!upstreamResponse.isSuccessful()) {
+                response.setStatus(upstreamResponse.code());
+                response.getWriter().write("Failed to fetch remote index.html from " + url);
+                return;
+            }
+
+            ResponseBody body = upstreamResponse.body();
+            if (body == null) {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                response.getWriter().write("Empty response from remote server");
+                return;
+            }
+
+            String html = body.string();
+
+            // Rewrite relative src attributes (skip absolute URLs, data:, blob:, #, //)
+            html = html.replaceAll(
+                    "src=\"(?!https?://|data:|blob:|#|//|PluginServlet)([^\"]+)\"",
+                    "src=\"PluginServlet?action=" + resourceAction + "&path=$1\""
+            );
+
+            // Rewrite relative href for CSS and JS (stylesheet, modulepreload, preload)
+            html = html.replaceAll(
+                    "href=\"(?!https?://|data:|blob:|#|//|PluginServlet)([^\"]+\\.(?:css|js))\"",
+                    "href=\"PluginServlet?action=" + resourceAction + "&path=$1\""
+            );
+
+            // Inject pos-bridge-sdk.js before </body>
+            String sdkScript = "<script src=\"PluginServlet?action=" + resourceAction
+                    + "&path=pos-bridge-sdk.js\"></script>";
+            html = html.replace("</body>", sdkScript + "\n</body>");
+
+            byte[] content = html.getBytes(StandardCharsets.UTF_8);
+            response.setContentType("text/html");
+            response.setCharacterEncoding("UTF-8");
+            response.setContentLength(content.length);
+            response.getOutputStream().write(content);
+        }
+    }
+
+    // -------------------------------------------------------
+    // Resource serving
+    // -------------------------------------------------------
+
     private void serveResource(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String path = request.getParameter("path");
 
-        if (path == null || path.isEmpty() || path.contains("..") || path.startsWith("/")) {
+        if (path == null || path.isEmpty() || path.contains("..")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.getWriter().write("Invalid path");
             return;
         }
 
+        // Strip leading slash — remote apps may have root-relative paths
+        while (path.startsWith("/")) {
+            path = path.substring(1);
+        }
+
+        if (path.isEmpty()) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write("Invalid path");
+            return;
+        }
+
+        if (isRemoteMode()) {
+            serveRemoteResource(path, response);
+        } else {
+            serveLocalResource(path, response);
+        }
+    }
+
+    private void serveLocalResource(String path, HttpServletResponse response) throws IOException {
         String resourcePath = "/app/" + path;
 
         try (InputStream is = this.getClass().getResourceAsStream(resourcePath)) {
@@ -246,6 +356,59 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
 
             byte[] content = is.readAllBytes();
             response.setContentType(getContentType(path));
+            response.setCharacterEncoding("UTF-8");
+            response.setContentLength(content.length);
+            response.getOutputStream().write(content);
+        }
+    }
+
+    private void serveRemoteResource(String path, HttpServletResponse response) throws IOException {
+        // Special case: pos-bridge-sdk.js is always served from classpath
+        if ("pos-bridge-sdk.js".equals(path)) {
+            serveClasspathResource("/pos-bridge-sdk.js", response);
+            return;
+        }
+
+        String url = getRemoteBaseUrl() + "/" + path;
+        Request request = new Request.Builder().url(url).get().build();
+
+        try (Response upstreamResponse = httpClient.newCall(request).execute()) {
+            if (!upstreamResponse.isSuccessful()) {
+                response.setStatus(upstreamResponse.code());
+                response.getWriter().write("Failed to fetch remote resource: " + path);
+                return;
+            }
+
+            // Forward upstream headers, stripping anti-embedding ones
+            for (String name : upstreamResponse.headers().names()) {
+                if (!STRIPPED_HEADERS.contains(name.toLowerCase())) {
+                    response.setHeader(name, upstreamResponse.header(name));
+                }
+            }
+
+            String contentType = upstreamResponse.header("Content-Type");
+            if (contentType != null) {
+                response.setContentType(contentType);
+            } else {
+                response.setContentType(getContentType(path));
+            }
+
+            byte[] responseBody = upstreamResponse.body() != null ? upstreamResponse.body().bytes() : new byte[0];
+            response.setContentLength(responseBody.length);
+            response.getOutputStream().write(responseBody);
+        }
+    }
+
+    private void serveClasspathResource(String classpathPath, HttpServletResponse response) throws IOException {
+        try (InputStream is = this.getClass().getResourceAsStream(classpathPath)) {
+            if (is == null) {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                response.getWriter().write("Classpath resource not found: " + classpathPath);
+                return;
+            }
+
+            byte[] content = is.readAllBytes();
+            response.setContentType(getContentType(classpathPath));
             response.setCharacterEncoding("UTF-8");
             response.setContentLength(content.length);
             response.getOutputStream().write(content);
