@@ -195,6 +195,80 @@ mvn clean install
 
 Produces a library JAR containing `AbstractWebAppBridgePlugin.class`, `cco-web-app-bridge.js` (templated), and `pos-bridge-sdk.js`.
 
+## Security
+
+### Choosing a Deployment Mode
+
+**Use embedded (local) mode for production deployments.** It provides significantly stronger security:
+
+| Aspect | Embedded (local) | Remote |
+|---|---|---|
+| Content integrity | Bundled in plugin JAR; immutable after deployment | Fetched at runtime; can change without POS update |
+| Network exposure | No external dependency at runtime | Requires network access to remote server |
+| MITM risk | None | Possible if TLS misconfigured or HTTP used |
+| Trust boundary | Plugin author controls all code | External server is additional trust relationship |
+| Update control | Requires explicit plugin redeployment | Remote app can change independently |
+| Security headers | N/A (same origin) | Stripped — removes upstream CSP/X-Frame-Options |
+
+Remote mode is appropriate for:
+- Trusted internal applications on secure networks with TLS
+
+Remote mode is **not appropriate** for:
+- Untrusted third-party applications
+- Apps hosted on shared infrastructure
+- Production deployments over plain HTTP
+
+### HTTPS Enforcement
+
+When `DEVMODE=false` (production), the library enforces HTTPS for:
+- All proxy target URLs (`{PREFIX}Proxy` endpoint)
+- The remote base URL (remote mode resource fetching)
+
+HTTP is only permitted when `DEVMODE=true`. This prevents man-in-the-middle injection of malicious code.
+
+### SSRF Protection
+
+The proxy endpoint (`{PREFIX}Proxy`) validates all target URLs before making server-side requests. The following are blocked:
+
+- **Loopback addresses** — 127.0.0.0/8, ::1
+- **Private/site-local networks** — 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+- **Link-local addresses** — 169.254.0.0/16, fe80::/10
+- **Cloud metadata endpoints** — 169.254.169.254, metadata.google.internal
+- **Multicast addresses**
+- **Non-HTTP(S) schemes** — file://, ftp://, etc.
+
+If your iframe app needs access to an internal service, expose it through a dedicated RPC handler rather than using the generic proxy.
+
+### Origin Validation
+
+The bridge extracts the expected origin from the iframe URL at setup time. All incoming `postMessage` events are checked against this origin. Messages from unexpected origins are dropped silently.
+
+### iframe Sandbox
+
+All iframes are created with:
+
+```html
+sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+```
+
+This blocks top-level navigation, plugins, pointer lock, and fullscreen. Note that `allow-same-origin` is required because content is served through `PluginServlet` (same origin as the POS). This means **any code running in the iframe has same-origin access** — only trusted code should run there.
+
+### Developer Recommendations
+
+1. **Prefer embedded mode**
+2. **Never enable `DEVMODE` in production** — it disables HTTPS enforcement and loads from localhost
+3. **Keep your remote app behind TLS** with a valid certificate if using remote mode
+4. **Do not serve user-generated content** from your iframe without XSS sanitization — CSP is stripped in remote mode
+
+### Accepted Architectural Risks
+
+These are inherent to the approach and cannot be fully eliminated:
+
+- **Same-origin iframe content**: Content served via `PluginServlet` runs in the POS origin. XSS in the iframe app gives access to all POS data exposed through the bridge.
+- **Security header stripping** (remote mode): `X-Frame-Options` must be removed for embedding. CSP from the remote app is also stripped.
+- **Plugin JS in POS context**: `cco-web-app-bridge.js` runs in the POS parent window with full access to DOM, event bus, and stores. A compromised plugin JAR means full POS compromise. Mitigate with code review and supply chain security.
+- **postMessage is broadcast**: Any script in the parent window can observe messages. Channel isolation prevents cross-plugin interference but does not provide confidentiality.
+
 ## Demos
 
 - **Local mode**: See [cco-web-app-bridge-demo](../cco-web-app-bridge-demo) — Angular app bundled in the JAR
