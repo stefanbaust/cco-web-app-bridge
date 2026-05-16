@@ -38,7 +38,8 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         const basePath = window.location.pathname.replace(/_\/$/, '/');
         let url = `${window.location.origin}${basePath}PluginServlet?action=__PREFIX__Servlet#/embedded`;
 
-        if(this.pluginConfig?.DEVMODE === true) {
+        if (this.pluginConfig?.DEVMODE === true && this.pluginConfig?.REMOTE === false) {
+            // TODO make this configurable
             url = 'http://localhost:4200#/embedded'
         }
 

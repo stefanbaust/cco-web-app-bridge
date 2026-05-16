@@ -12,12 +12,17 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -184,6 +189,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
             if (configEventName.equals(eventName)) {
                 Map<String, Object> props = new HashMap<>();
                 props.put("DEVMODE", getProperty("DEVMODE", false));
+                props.put("REMOTE", StringUtils.isNotBlank(this.remoteBaseUrl));
                 responseMap.put("config", props);
             }
         } catch (Exception e) {
@@ -202,6 +208,17 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
 
         String targetUrl = payload.getString("url");
         String method = payload.optString("method", "GET").toUpperCase();
+
+        // SSRF protection: validate target URL before making request
+        try {
+            validateProxyTarget(targetUrl);
+        } catch (SecurityException e) {
+            logger.warn("[{}] Proxy request blocked: {}", prefix, e.getMessage());
+            servletResponse.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            servletResponse.setContentType("application/json");
+            servletResponse.getWriter().write("{\"error\":\"" + e.getMessage() + "\"}");
+            return;
+        }
 
         Request.Builder reqBuilder = new Request.Builder().url(targetUrl);
 
@@ -269,6 +286,15 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
     }
 
     private void serveRemoteIndexHtml(HttpServletResponse response) throws IOException {
+        try {
+            validateRemoteBaseUrl();
+        } catch (SecurityException e) {
+            logger.error("[{}] Remote base URL validation failed: {}", prefix, e.getMessage());
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.getWriter().write(e.getMessage());
+            return;
+        }
+
         String url = getRemoteBaseUrl() + "/index.html";
         Request request = new Request.Builder().url(url).get().build();
 
@@ -369,6 +395,15 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
             return;
         }
 
+        try {
+            validateRemoteBaseUrl();
+        } catch (SecurityException e) {
+            logger.error("[{}] Remote base URL validation failed: {}", prefix, e.getMessage());
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.getWriter().write(e.getMessage());
+            return;
+        }
+
         String url = getRemoteBaseUrl() + "/" + path;
         Request request = new Request.Builder().url(url).get().build();
 
@@ -422,5 +457,109 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
             return CONTENT_TYPES.getOrDefault(ext, "application/octet-stream");
         }
         return "application/octet-stream";
+    }
+
+    // -------------------------------------------------------
+    // Security: SSRF protection for proxy endpoint
+    // -------------------------------------------------------
+
+    /**
+     * Validates that a proxy target URL is safe to request.
+     * Blocks requests to private/internal networks and non-HTTPS URLs in production.
+     */
+    private void validateProxyTarget(String targetUrl) throws SecurityException {
+        URI uri;
+        try {
+            uri = new URI(targetUrl);
+        } catch (URISyntaxException e) {
+            throw new SecurityException("Invalid proxy target URL: " + targetUrl);
+        }
+
+        String scheme = uri.getScheme();
+        if (scheme == null) {
+            throw new SecurityException("Proxy target URL must have a scheme: " + targetUrl);
+        }
+
+        // Enforce HTTPS in production mode
+        boolean devMode = getProperty("DEVMODE", false);
+        if (!devMode && !"https".equalsIgnoreCase(scheme)) {
+            throw new SecurityException("Proxy target URL must use HTTPS in production: " + targetUrl);
+        }
+
+        // Only allow http/https schemes
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+            throw new SecurityException("Proxy target URL must use HTTP or HTTPS scheme: " + targetUrl);
+        }
+
+        String host = uri.getHost();
+        if (host == null || host.isEmpty()) {
+            throw new SecurityException("Proxy target URL must have a host: " + targetUrl);
+        }
+
+        // Block known internal/metadata hostnames
+        if ("metadata.google.internal".equalsIgnoreCase(host)) {
+            throw new SecurityException("Proxy target blocked (internal metadata): " + targetUrl);
+        }
+
+        // Resolve hostname and check against blocked IP ranges
+        try {
+            InetAddress[] addresses = InetAddress.getAllByName(host);
+            for (InetAddress addr : addresses) {
+                if (isBlockedAddress(addr)) {
+                    throw new SecurityException("Proxy target resolves to blocked address: " + targetUrl);
+                }
+            }
+        } catch (UnknownHostException e) {
+            throw new SecurityException("Cannot resolve proxy target host: " + host);
+        }
+    }
+
+    /**
+     * Returns true if the address is in a private, loopback, link-local,
+     * or otherwise internal network range that should not be accessible via proxy.
+     */
+    private static boolean isBlockedAddress(InetAddress addr) {
+        return addr.isLoopbackAddress()
+                || addr.isSiteLocalAddress()
+                || addr.isLinkLocalAddress()
+                || addr.isAnyLocalAddress()
+                || addr.isMulticastAddress()
+                || isCloudMetadataAddress(addr);
+    }
+
+    /**
+     * Checks for well-known cloud metadata IP addresses (169.254.169.254, fd00:ec2::254).
+     */
+    private static boolean isCloudMetadataAddress(InetAddress addr) {
+        byte[] bytes = addr.getAddress();
+        // IPv4: 169.254.169.254
+        if (bytes.length == 4) {
+            return (bytes[0] & 0xFF) == 169
+                    && (bytes[1] & 0xFF) == 254
+                    && (bytes[2] & 0xFF) == 169
+                    && (bytes[3] & 0xFF) == 254;
+        }
+        return false;
+    }
+
+    // -------------------------------------------------------
+    // Security: HTTPS enforcement for remote base URL
+    // -------------------------------------------------------
+
+    /**
+     * Validates that the remote base URL uses HTTPS when not in DEVMODE.
+     * Called at request time since DEVMODE is a runtime property.
+     */
+    private void validateRemoteBaseUrl() throws SecurityException {
+        String url = getRemoteBaseUrl();
+        if (url == null) return;
+
+        boolean devMode = getProperty("DEVMODE", false);
+        if (!devMode && !url.toLowerCase().startsWith("https://")) {
+            throw new SecurityException(
+                    "Remote base URL must use HTTPS in production mode. "
+                            + "Set DEVMODE=true for development with HTTP, or configure an HTTPS URL. "
+                            + "Current URL: " + url);
+        }
     }
 }
