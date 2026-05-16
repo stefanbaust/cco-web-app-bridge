@@ -208,6 +208,8 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
                     `
                 }
             },
+            hideCancelButton: false,
+            hideDoneButton: true,
             resultFunction: (positive) => {
                 console.log('Iframe popup closed. Cancelled:', !positive);
                 this.iframeWindow = null;
