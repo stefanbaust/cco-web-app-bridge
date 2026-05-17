@@ -171,6 +171,39 @@ receipt.unsubscribe();
 
 The `subscribe()` callback receives an object with `{ store, payload }` where `store` is the store name and `payload` is the observer payload from CCO.
 
+## Event Bus Handling
+
+Iframe apps can subscribe to arbitrary CCO event bus events using `handleEvent()`. This goes beyond the curated events (`receiptChanged`, `selectedItem`) — any event type can be observed.
+
+The optional `consume` flag controls whether the event is consumed (stops propagation to other plugins). Since `handleEvent()` on the CCO side is synchronous, the consume decision is declared at registration time, not per callback invocation.
+
+### Basic usage
+
+```javascript
+const pos = new POSBridge();
+await pos.ready();
+
+// Observe an event without consuming it (default)
+pos.handleEvent('SALESITEM_ADD', (payload) => {
+  console.log('Item added:', payload);
+});
+
+// Handle an event and consume it (other plugins won't receive it)
+pos.handleEvent('MY_CUSTOM_EVENT', (payload) => {
+  console.log('Processing:', payload);
+}, { consume: true });
+
+// Stop handling an event
+pos.removeEventHandler('MY_CUSTOM_EVENT');
+```
+
+### Notes
+
+- Each event type can have one handler at a time. Calling `handleEvent()` again for the same event type replaces the previous registration.
+- `handleEvent()` returns a Promise that resolves when the bridge has registered the handler.
+- Events handled via `handleEvent()` are delivered through the same `POS_EVENT` mechanism as store subscriptions and curated events.
+- The existing `WORKCENTER_LOADED` and prefix-specific `SHOW_WEBVIEW` handling runs first and is unaffected.
+
 ## Remote mode
 
 The bridge supports embedding remote web apps that normally block iframe embedding (via `X-Frame-Options` or CSP `frame-ancestors`). The servlet proxies the entire remote app, strips anti-embedding headers, rewrites relative asset paths, and auto-injects `pos-bridge-sdk.js`.

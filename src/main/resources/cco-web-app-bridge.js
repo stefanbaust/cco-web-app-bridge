@@ -16,6 +16,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
 
         this._rpcHandlers = {};
         this._storeObservers = {};
+        this._eventHandlers = {};
         this._registerRpcHandlers();
 
         this.init();
@@ -27,8 +28,6 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         this._boundMessageHandler = this._handlePostMessage.bind(this);
         window.addEventListener('message', this._boundMessageHandler);
 
-        const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
-        receiptStore.addObserver(this);
         this.pluginConfig = await this.fetchPluginConfig();
         this.setupCustomerComponent();
     }
@@ -39,7 +38,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         const basePath = window.location.pathname.replace(/_\/$/, '/');
         let url = `${window.location.origin}${basePath}PluginServlet?action=__PREFIX__Servlet#/embedded`;
 
-        if (this.pluginConfig?.DEVMODE === true && this.pluginConfig?.REMOTE === false) {
+        if (this.pluginConfig?.DEVMODE === true && !this.pluginConfig?.REMOTE) {
             // TODO make this configurable
             url = 'http://localhost:4200#/embedded'
         }
@@ -108,20 +107,6 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         return config;
     }
 
-    observe(store, payload) {
-        if (store instanceof cco.ReceiptStore) {
-            console.log('Current state', payload);
-            this.sendEvent('receiptChanged', store.getReceiptModel());
-
-            const selectedItem = store.getSelectedItem();
-            if (selectedItem) {
-                this.sendEvent('selectedItem', store.getSelectedItem());
-            } else {
-                this.sendEvent('selectedItem', null);
-            }
-        }
-    }
-
     destroy() {
         for (const storeName of Object.keys(this._storeObservers)) {
             try {
@@ -130,6 +115,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
                 console.warn('[__PREFIX__Bridge] Error unsubscribing store on destroy:', storeName, e);
             }
         }
+        this._eventHandlers = {};
         window.removeEventListener('message', this._boundMessageHandler);
     }
 
@@ -214,6 +200,16 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         this._rpcHandlers['__store_unsubscribe__'] = (params) => {
             return this._unsubscribeStore(params.store);
         };
+
+        this._rpcHandlers['__event_handle__'] = (params) => {
+            this._eventHandlers[params.eventType] = { consume: !!params.consume };
+            return { registered: true };
+        };
+
+        this._rpcHandlers['__event_unhandle__'] = (params) => {
+            delete this._eventHandlers[params.eventType];
+            return { unregistered: true };
+        };
     }
 
     // -------------------------------------------------------
@@ -232,6 +228,13 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
             case '__PREFIX___SHOW_WEBVIEW':
                 this.showIframePopup();
                 break;
+        }
+
+        const eventType = event.getType();
+        const handler = this._eventHandlers[eventType];
+        if (handler) {
+            this.sendEvent('bus:' + eventType, event.getPayload());
+            return handler.consume;
         }
     }
 

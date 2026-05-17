@@ -157,6 +157,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
         } else if (configAction.equals(action)) {
             JSONObject config = new JSONObject();
             config.put("DEVMODE", getProperty("DEVMODE", false));
+            config.put("REMOTE", StringUtils.isNotBlank(this.remoteBaseUrl));
             byte[] content = config.toString().getBytes(StandardCharsets.UTF_8);
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");

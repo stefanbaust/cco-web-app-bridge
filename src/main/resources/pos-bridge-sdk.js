@@ -23,6 +23,7 @@ class POSBridge {
     this._readyPromise = null;
     this._readyResolve = null;
     this._storeProxies = {};
+    this._eventHandlerCallbacks = new Map();
 
     this._readyPromise = new Promise((resolve) => {
       this._readyResolve = resolve;
@@ -60,6 +61,7 @@ class POSBridge {
     }
     this._pendingRequests.clear();
     this._eventListeners.clear();
+    this._eventHandlerCallbacks.clear();
     this._storeProxies = {};
   }
 
@@ -85,6 +87,40 @@ class POSBridge {
       type: 'PUSH_EVENT',
       payload: { eventType, eventData },
     });
+  }
+
+  /**
+   * Register a handler for a POS event bus event.
+   * The callback is invoked whenever the event fires on the CCO event bus.
+   *
+   * @param {string} eventType - The event bus event type (e.g. 'SALESITEM_ADD')
+   * @param {Function} callback - Called with the event payload
+   * @param {Object} [options]
+   * @param {boolean} [options.consume=false] - If true, the event is consumed
+   *   (stops propagation to other plugins)
+   * @returns {Promise} Resolves when the handler is registered on the bridge
+   */
+  handleEvent(eventType, callback, options) {
+    this._eventHandlerCallbacks.set(eventType, callback);
+    this.on('bus:' + eventType, callback);
+    return this._rpc('__event_handle__', {
+      eventType,
+      consume: options?.consume ?? false,
+    });
+  }
+
+  /**
+   * Remove a previously registered event bus handler.
+   * @param {string} eventType - The event type to stop handling
+   * @returns {Promise} Resolves when the handler is removed on the bridge
+   */
+  removeEventHandler(eventType) {
+    const callback = this._eventHandlerCallbacks.get(eventType);
+    if (callback) {
+      this.off('bus:' + eventType, callback);
+      this._eventHandlerCallbacks.delete(eventType);
+    }
+    return this._rpc('__event_unhandle__', { eventType });
   }
 
   /**
