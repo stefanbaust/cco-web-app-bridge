@@ -226,7 +226,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         }
         switch (event.getType()) {
             case '__PREFIX___SHOW_WEBVIEW':
-                this.showIframePopup();
+                this.showIframePopup(event.getPayload());
                 break;
         }
 
@@ -238,12 +238,26 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         }
     }
 
-    showIframePopup() {
+    showIframePopup(payload) {
         const basePath = window.location.pathname.replace(/_\/$/, '/');
         let url = `${window.location.origin}${basePath}PluginServlet?action=__PREFIX__Servlet#/popup`;
 
         if(this.pluginConfig.DEVMODE === true) {
             url = 'http://localhost:4200#/popup'
+        }
+
+        // Append payload properties as query params in the hash fragment
+        if (payload && typeof payload === 'object' && Object.keys(payload).length > 0) {
+            const params = new URLSearchParams();
+            for (const [key, value] of Object.entries(payload)) {
+                if (value != null) {
+                    params.set(key, String(value));
+                }
+            }
+            const paramString = params.toString();
+            if (paramString) {
+                url += '?' + paramString;
+            }
         }
 
         try {
