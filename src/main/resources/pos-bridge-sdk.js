@@ -7,9 +7,10 @@
  * Usage:
  *   const pos = new POSBridge();
  *   await pos.ready();
- *   const receipt = await pos.getReceipt();
  *
- *   pos.on('receiptChanged', (receipt) => { ... });
+ *   const receipt = pos.store('ReceiptStore');
+ *   const model = await receipt.getReceiptModel();
+ *   receipt.subscribe((data) => console.log('changed', data.payload));
  */
 class POSBridge {
   constructor(options = {}) {
@@ -21,6 +22,7 @@ class POSBridge {
     this._bridgeReady = false;
     this._readyPromise = null;
     this._readyResolve = null;
+    this._storeProxies = {};
 
     this._readyPromise = new Promise((resolve) => {
       this._readyResolve = resolve;
@@ -58,27 +60,12 @@ class POSBridge {
     }
     this._pendingRequests.clear();
     this._eventListeners.clear();
+    this._storeProxies = {};
   }
 
   // -------------------------------------------------------
   // POS Methods
   // -------------------------------------------------------
-
-  /**
-   * Get the current receipt.
-   * @returns {Promise<Object>} The receipt model
-   */
-  getReceipt() {
-    return this._rpc('getReceipt');
-  }
-
-  /**
-   * Get the current receipt.
-   * @returns {Promise<Object>} The receipt model
-   */
-  isItemSelected(salesItemKey) {
-    return this._rpc('isItemSelected', salesItemKey);
-  }
 
   /**
    * Get the POS user locale (e.g. 'de', 'en', 'fr').
@@ -98,6 +85,63 @@ class POSBridge {
       type: 'PUSH_EVENT',
       payload: { eventType, eventData },
     });
+  }
+
+  /**
+   * Get a proxy for a CCO store. Any method call on the returned object
+   * becomes an RPC to the POS bridge.
+   *
+   * @param {string} storeName - The CCO store name (e.g. 'ReceiptStore')
+   * @returns {Proxy} A proxy where method calls become RPCs
+   *
+   * @example
+   *   const receipt = pos.store('ReceiptStore');
+   *   const model = await receipt.getReceiptModel();
+   *   receipt.subscribe((payload) => console.log('changed', payload));
+   *   receipt.unsubscribe();
+   */
+  store(storeName) {
+    if (this._storeProxies[storeName]) {
+      return this._storeProxies[storeName];
+    }
+
+    const bridge = this;
+    let subscribeCallback = null;
+
+    const proxy = new Proxy({}, {
+      get(_target, prop) {
+        // Prevent the proxy from being treated as a thenable or breaking serialization
+        if (prop === 'then' || prop === 'toJSON' || prop === 'valueOf' || typeof prop === 'symbol') {
+          return undefined;
+        }
+
+        if (prop === 'subscribe') {
+          return function (callback) {
+            subscribeCallback = callback;
+            bridge.on('store:' + storeName, callback);
+            return bridge._rpc('__store_subscribe__', { store: storeName });
+          };
+        }
+
+        if (prop === 'unsubscribe') {
+          return function () {
+            if (subscribeCallback) {
+              bridge.off('store:' + storeName, subscribeCallback);
+              subscribeCallback = null;
+            }
+            return bridge._rpc('__store_unsubscribe__', { store: storeName });
+          };
+        }
+
+        // Any other property access returns a function that issues an RPC
+        return function (...args) {
+          return bridge._rpc('__store__', { store: storeName, method: prop, args });
+        };
+      }
+    });
+
+    this._storeProxies[storeName] = proxy;
+    return proxy;
   }
 
   // -------------------------------------------------------

@@ -48,3 +48,5 @@ tomcat.8080
 webapp/node/
 webapp/node_modules/
 webapp/.angular/
+
+docs

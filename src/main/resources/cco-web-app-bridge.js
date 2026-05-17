@@ -15,6 +15,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         this.allowedOrigin = null;
 
         this._rpcHandlers = {};
+        this._storeObservers = {};
         this._registerRpcHandlers();
 
         this.init();
@@ -122,7 +123,62 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
     }
 
     destroy() {
+        for (const storeName of Object.keys(this._storeObservers)) {
+            try {
+                this._unsubscribeStore(storeName);
+            } catch (e) {
+                console.warn('[__PREFIX__Bridge] Error unsubscribing store on destroy:', storeName, e);
+            }
+        }
         window.removeEventListener('message', this._boundMessageHandler);
+    }
+
+    // -------------------------------------------------------
+    // Dynamic Store Access
+    // -------------------------------------------------------
+
+    _invokeStoreMethod(storeName, methodName, args) {
+        const store = this.pluginService.getContextInstance(storeName);
+        if (!store) {
+            throw new Error(`Store not found: ${storeName}`);
+        }
+        if (typeof store[methodName] !== 'function') {
+            throw new Error(`Method not found: ${storeName}.${methodName}`);
+        }
+        return store[methodName](...(Array.isArray(args) ? args : []));
+    }
+
+    _subscribeStore(storeName) {
+        if (this._storeObservers[storeName]) {
+            return { subscribed: true, alreadyActive: true };
+        }
+        const store = this.pluginService.getContextInstance(storeName);
+        if (!store) {
+            throw new Error(`Store not found: ${storeName}`);
+        }
+        if (typeof store.addObserver !== 'function') {
+            throw new Error(`Store does not support observers: ${storeName}`);
+        }
+        const observer = {
+            observe: (_store, payload) => {
+                this.sendEvent('store:' + storeName, { store: storeName, payload });
+            }
+        };
+        store.addObserver(observer);
+        this._storeObservers[storeName] = { observer, store };
+        return { subscribed: true };
+    }
+
+    _unsubscribeStore(storeName) {
+        const entry = this._storeObservers[storeName];
+        if (!entry) {
+            return { unsubscribed: false, reason: 'No active subscription' };
+        }
+        if (typeof entry.store.removeObserver === 'function') {
+            entry.store.removeObserver(entry.observer);
+        }
+        delete this._storeObservers[storeName];
+        return { unsubscribed: true };
     }
 
     // -------------------------------------------------------
@@ -130,16 +186,6 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
     // -------------------------------------------------------
 
     _registerRpcHandlers() {
-        this._rpcHandlers['getReceipt'] = () => {
-            const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
-            return receiptStore.getReceiptModel();
-        };
-
-        this._rpcHandlers['isItemSelected'] = (salesItemKey) => {
-            const receiptStore = this.pluginService.getContextInstance('ReceiptStore');
-            return receiptStore.isItemSelected(salesItemKey);
-        };
-
         this._rpcHandlers['getLocale'] = () => {
             try {
                 const userStore = this.pluginService.getContextInstance('UserStore');
@@ -155,6 +201,18 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
                 console.warn('[__PREFIX__Bridge] Could not get default language:', e);
             }
             return 'de';
+        };
+
+        this._rpcHandlers['__store__'] = (params) => {
+            return this._invokeStoreMethod(params.store, params.method, params.args);
+        };
+
+        this._rpcHandlers['__store_subscribe__'] = (params) => {
+            return this._subscribeStore(params.store);
+        };
+
+        this._rpcHandlers['__store_unsubscribe__'] = (params) => {
+            return this._unsubscribeStore(params.store);
         };
     }
 

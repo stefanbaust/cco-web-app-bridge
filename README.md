@@ -138,6 +138,39 @@ pos.on('receiptChanged', (receipt) => { /* ... */ });
 pos.pushEvent('SHOW_MESSAGE', 'Hello from iframe!');
 ```
 
+## Dynamic Store Access
+
+The bridge provides a generic proxy API that lets iframe apps call any CCO store method and subscribe to store changes — without requiring bridge-side code changes per method.
+
+### Basic usage
+
+```javascript
+const pos = new POSBridge();
+await pos.ready();
+
+const receipt = pos.store('ReceiptStore');
+const model = await receipt.getReceiptModel();
+const selected = await receipt.isItemSelected('key123');
+
+const sales = pos.store('SalesStore');
+const state = await sales.getCurrentState();
+```
+
+### Subscribe to store changes
+
+```javascript
+const receipt = pos.store('ReceiptStore');
+
+receipt.subscribe((data) => {
+  console.log('Store changed:', data.payload);
+});
+
+// Later: unsubscribe
+receipt.unsubscribe();
+```
+
+The `subscribe()` callback receives an object with `{ store, payload }` where `store` is the store name and `payload` is the observer payload from CCO.
+
 ## Remote mode
 
 The bridge supports embedding remote web apps that normally block iframe embedding (via `X-Frame-Options` or CSP `frame-ancestors`). The servlet proxies the entire remote app, strips anti-embedding headers, rewrites relative asset paths, and auto-injects `pos-bridge-sdk.js`.
