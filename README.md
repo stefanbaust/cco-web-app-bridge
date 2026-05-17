@@ -41,6 +41,10 @@ Resolved identifiers for prefix `MY`:
 
 Standard POS events (`SALESITEM_ADD`, `SHOW_MESSAGE`, `TOGGLE_KEYBOARD`, etc.) are not prefixed — they are global CCO events.
 
+## Classloader
+
+It is recommended to use the mechanism from CCO to have isolated classloaders. For this put the plugin in a subfolder called `CL_your-plugin-name`. 
+
 ## Usage
 
 ### 1. Add the dependency
