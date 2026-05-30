@@ -4,19 +4,24 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <servers>
     <server>
-      <username>${env.MAVEN_REPO_USERNAME}</username>
-      <password>${env.MAVEN_REPO_PASSWORD}</password>
       <id>central</id>
+      <username>${env.CENTRAL_TOKEN_USERNAME}</username>
+      <password>${env.CENTRAL_TOKEN_PASSWORD}</password>
     </server>
     <server>
+      <id>artifactory-central</id>
       <username>${env.MAVEN_REPO_USERNAME}</username>
       <password>${env.MAVEN_REPO_PASSWORD}</password>
-      <id>snapshots</id>
     </server>
     <server>
+      <id>artifactory-snapshots</id>
       <username>${env.MAVEN_REPO_USERNAME}</username>
       <password>${env.MAVEN_REPO_PASSWORD}</password>
+    </server>
+    <server>
       <id>sap-cco-deps</id>
+      <username>${env.MAVEN_REPO_USERNAME}</username>
+      <password>${env.MAVEN_REPO_PASSWORD}</password>
     </server>
   </servers>
   <profiles>
@@ -26,13 +31,13 @@
           <snapshots>
             <enabled>false</enabled>
           </snapshots>
-          <id>central</id>
+          <id>artifactory-central</id>
           <name>maven</name>
           <url>https://baustdev.jfrog.io/artifactory/maven</url>
         </repository>
         <repository>
           <snapshots />
-          <id>snapshots</id>
+          <id>artifactory-snapshots</id>
           <name>maven</name>
           <url>https://baustdev.jfrog.io/artifactory/maven</url>
         </repository>
@@ -42,13 +47,13 @@
           <snapshots>
             <enabled>false</enabled>
           </snapshots>
-          <id>central</id>
+          <id>artifactory-central</id>
           <name>maven</name>
           <url>https://baustdev.jfrog.io/artifactory/maven</url>
         </pluginRepository>
         <pluginRepository>
           <snapshots />
-          <id>snapshots</id>
+          <id>artifactory-snapshots</id>
           <name>maven</name>
           <url>https://baustdev.jfrog.io/artifactory/maven</url>
         </pluginRepository>

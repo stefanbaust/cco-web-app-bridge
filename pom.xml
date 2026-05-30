@@ -7,6 +7,31 @@
     <artifactId>cco-web-app-bridge</artifactId>
     <version>0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
+
+    <name>CCO Web App Bridge</name>
+    <description>A bridge library for SAP Customer Checkout web application extensions</description>
+    <url>https://github.com/stefanbaust/cco-web-app-bridge</url>
+
+    <licenses>
+        <license>
+            <name>GNU Lesser General Public License v3.0</name>
+            <url>https://www.gnu.org/licenses/lgpl-3.0.txt</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Stefan Baust</name>
+            <url>https://github.com/stefanbaust</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/stefanbaust/cco-web-app-bridge.git</connection>
+        <developerConnection>scm:git:ssh://github.com/stefanbaust/cco-web-app-bridge.git</developerConnection>
+        <url>https://github.com/stefanbaust/cco-web-app-bridge</url>
+    </scm>
+
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
@@ -61,4 +86,71 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>artifactory-snapshots</id>
+            <url>https://baustdev.jfrog.io/artifactory/maven</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals><goal>jar-no-fork</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.11.2</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals><goal>jar</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.7</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals><goal>sign</goal></goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.7.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
