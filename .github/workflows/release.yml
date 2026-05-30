@@ -53,6 +53,8 @@ jobs:
       - name: Update version in README
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout main
           sed -i "s|<version>[0-9][^<]*</version>|<version>${VERSION}</version>|" README.md
           if git diff --quiet README.md; then
