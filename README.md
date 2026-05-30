@@ -1,5 +1,9 @@
 # cco-web-app-bridge
 
+[![Build](https://github.com/stefanbaust/cco-web-app-bridge/actions/workflows/build.yml/badge.svg)](https://github.com/stefanbaust/cco-web-app-bridge/actions/workflows/build.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/dev.baust.cco.webapp.bridge/cco-web-app-bridge)](https://central.sonatype.com/artifact/dev.baust.cco.webapp.bridge/cco-web-app-bridge)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
+
 Reusable bridge library for embedding web applications (SPAs) as iframes inside SAP Customer Checkout (CCO) NGUI plugins.
 
 Provides an abstract base class and a templated JavaScript bridge that handles:
@@ -53,7 +57,7 @@ It is recommended to use the mechanism from CCO to have isolated classloaders. F
 <dependency>
     <groupId>dev.baust.cco.webapp.bridge</groupId>
     <artifactId>cco-web-app-bridge</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 

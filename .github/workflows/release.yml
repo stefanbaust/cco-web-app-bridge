@@ -14,6 +14,7 @@ jobs:
     environment: maven-central          # <-- gates on approval + restricts secrets
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,3 +49,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+
+      - name: Update version in README
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          git checkout main
+          sed -i "s|<version>[0-9][^<]*</version>|<version>${VERSION}</version>|" README.md
+          if git diff --quiet README.md; then
+            echo "README already up to date"
+            exit 0
+          fi
+          git checkout -b "update-readme-v${VERSION}"
+          git add README.md
+          git commit -m "Update dependency version to ${VERSION} in README"
+          git push origin "update-readme-v${VERSION}"
+          gh pr create \
+            --title "Update dependency version to ${VERSION} in README" \
+            --body "Automated PR to update the dependency version in README after release v${VERSION}." \
+            --base main
+        env:
+          GH_TOKEN: ${{ github.token }}
