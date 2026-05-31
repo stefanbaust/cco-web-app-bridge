@@ -57,7 +57,7 @@ It is recommended to use the mechanism from CCO to have isolated classloaders. F
 <dependency>
     <groupId>dev.baust.cco.webapp.bridge</groupId>
     <artifactId>cco-web-app-bridge</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.3</version>
 </dependency>
 ```
 
