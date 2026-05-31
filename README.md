@@ -345,5 +345,4 @@ These are inherent to the approach and cannot be fully eliminated:
 
 ## Demos
 
-- **Local mode**: See [cco-web-app-bridge-demo](../cco-web-app-bridge-demo) — Angular app bundled in the JAR
-- **Remote mode**: See [cco-web-app-bridge-demo-remote](../cco-web-app-bridge-demo-remote) — proxies an external static app
+- **Local mode**: See [cco-web-app-bridge-demo-foodinfo](https://github.com/stefanbaust/cco-web-app-bridge-demo-foodinfo) — Angular app bundled in the JAR
