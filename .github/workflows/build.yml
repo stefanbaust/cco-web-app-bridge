@@ -9,8 +9,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      MAVEN_REPO_USERNAME: ${{ secrets.MAVEN_REPO_USERNAME }}
+      MAVEN_REPO_PASSWORD: ${{ secrets.MAVEN_REPO_PASSWORD }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # full history for accurate SonarQube Cloud new-code detection
+          fetch-depth: 0
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -21,6 +28,13 @@ jobs:
 
       - name: Build and verify
         run: mvn verify -s .mvn/settings.xml
-        env:
-          MAVEN_REPO_USERNAME: ${{ secrets.MAVEN_REPO_USERNAME }}
-          MAVEN_REPO_PASSWORD: ${{ secrets.MAVEN_REPO_PASSWORD }}
+
+      - name: SonarQube Cloud analysis
+        # secrets are empty on PRs from forks and while SONAR_TOKEN is not configured yet — skip then
+        if: env.SONAR_TOKEN != ''
+        run: >-
+          mvn -B -s .mvn/settings.xml
+          org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.6970:sonar
+          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.organization=stefanbaust
+          -Dsonar.projectKey=stefanbaust_cco-web-app-bridge

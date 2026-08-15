@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "description": "SAP Customer Checkout artifacts (ENV) live in a private repository and are pinned to the CCO feature pack on purpose — never bump automatically",
+      "matchPackageNames": ["/^com\\.sap\\.customercheckout/"],
+      "enabled": false
+    }
+  ]
+}
