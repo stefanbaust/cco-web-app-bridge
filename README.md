@@ -107,19 +107,33 @@ public class MyPlugin extends AbstractWebAppBridgePlugin {
 
 ### 3. Include the embedded view in NGUI
 
-Add the component to a Quickselection or layout using DynamicProperties (replace `MY` with your prefix):
+The bridge publishes the embedded view under the DynamicProperties key `MY_WEBVIEW_EMBEDDED` (replace `MY` with your prefix). To render it, add a regular node to a quick selection (e.g. into the `bottom` area) and put the following JSON — as a plain string — into the node's **`extendedFunction`** field:
 
 ```json
 {
   "complex": {
     "component": "ContainerComponent",
-    "props": {
-      "static": {},
-      "dynamic": "#dynamicProperties:MY_WEBVIEW_EMBEDDED"
-    }
+    "props": {},
+    "dynamicProperties": "#dynamicProperties:MY_WEBVIEW_EMBEDDED"
   }
 }
 ```
+
+The NGUI resolves `extendedFunction` at render time: the `#dynamicProperties:` prefix wires the component's props to the bridge's DynamicProperties entry, so the iframe appears where the node sits (verified on cloud edition 3.0 FP2503).
+
+Via the Manager API this is one call (the `extendedFunction` value is the JSON above, serialized into a string):
+
+```
+POST /ccos/api/ui/quickselections/selectionstructure
+{
+  "parentStructure": "<uuid of the quick selection's bottom area>",
+  "structureType": "TEXT",
+  "text": "MyWebview",
+  "extendedFunction": "{\"complex\":{\"component\":\"ContainerComponent\",\"props\":{},\"dynamicProperties\":\"#dynamicProperties:MY_WEBVIEW_EMBEDDED\"}}"
+}
+```
+
+> **Note:** a quick-selection *component* of type TEXT (`/ui/quickselections/components`) does **not** work for this — its `text` is rendered literally. The JSON must go into a node's `extendedFunction` field.
 
 ### 4. Open the popup from the iframe
 
