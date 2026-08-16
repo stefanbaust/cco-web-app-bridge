@@ -11,6 +11,12 @@ name: Portal release
 on:
   push:
     tags: [ 'v*' ]
+  # Manueller Test der Verdrahtung: bestehende Version melden -> 409 zaehlt als Erfolg
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to report (e.g. 0.1.5); reruns of existing versions yield 409 = ok'
+        required: true
 
 permissions:
   contents: read
@@ -22,11 +28,12 @@ jobs:
       PORTAL_ADMIN_TOKEN: ${{ secrets.PORTAL_ADMIN_TOKEN }}
       PORTAL_URL: ${{ vars.PORTAL_URL || 'https://portal.stefanbaust.de' }}
       PRODUCT_SLUG: cco-web-app-bridge
+      INPUT_VERSION: ${{ inputs.version }}
     steps:
       - name: Report version to portal
         if: env.PORTAL_ADMIN_TOKEN != ''
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
           DATE="$(date -u +%F)"
           code=$(curl -sS -o resp.txt -w '%{http_code}' -X POST \
             -H "Authorization: Bearer $PORTAL_ADMIN_TOKEN" \
