@@ -1,0 +1,37 @@
+# Meldet bei jedem v*-Tag die Version ans Kundenportal (portal.stefanbaust.de) —
+# OHNE Artefakt-Upload: der "Download" dort ist der Link auf dieses Repo, das
+# Portal zeigt nur "Aktuelle Version x.y.z". Gegenstück zum GitLab-portal.yml
+# der closed-source-Plugins.
+#
+# Benötigt das Repo-Secret PORTAL_ADMIN_TOKEN (cpa_…, ADMIN-scoped Portal-Token).
+# Ohne Secret (z. B. Fork) skippt der Job sich selbst — Secret-Prüfung als
+# Job-Level-env, ein Step-Level `if: secrets.X` wäre ein Workflow-Parse-Fehler.
+name: Portal release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: read
+
+jobs:
+  portal-release:
+    runs-on: ubuntu-latest
+    env:
+      PORTAL_ADMIN_TOKEN: ${{ secrets.PORTAL_ADMIN_TOKEN }}
+      PORTAL_URL: ${{ vars.PORTAL_URL || 'https://portal.stefanbaust.de' }}
+      PRODUCT_SLUG: cco-web-app-bridge
+    steps:
+      - name: Report version to portal
+        if: env.PORTAL_ADMIN_TOKEN != ''
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DATE="$(date -u +%F)"
+          code=$(curl -sS -o resp.txt -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $PORTAL_ADMIN_TOKEN" \
+            -F "version=$VERSION" -F "releaseDate=$DATE" \
+            "$PORTAL_URL/api/v1/admin/products/$PRODUCT_SLUG/releases")
+          cat resp.txt; echo " HTTP=$code"
+          # 409 = Version schon gemeldet (Tag-Rerun) — kein Fehler
+          test "$code" = "201" -o "$code" = "409"
