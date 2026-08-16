@@ -51,6 +51,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         }
 
         const iframeId = this.iframeIdEmbedded;
+        const hostId = '__PREFIX___embed_host';
 
         const customerComponent = {
             component: 'GridLayoutComponent',
@@ -65,14 +66,7 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
                         content: {
                             component: 'HtmlComponent',
                             props: {
-                                content: `
-                                    <iframe
-                                        id="${iframeId}"
-                                        src="${url}"
-                                        style="width:100%; height:100%; border:none;"
-                                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                                    ></iframe>
-                                    `
+                                content: `<div id="${hostId}" style="width:100%; height:100%;"></div>`
                             }
                         }
                     }
@@ -92,10 +86,44 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
             });
         }
 
-        setTimeout(() => {
-            const iframe = document.getElementById(iframeId);
-            console.log('got Iframe:', iframe);
-        }, 0);
+        this._ensureIframeMounted(hostId, iframeId, url);
+    }
+
+    _buildIframe(iframeId, url) {
+        const iframe = document.createElement('iframe');
+        iframe.id = iframeId;
+        iframe.src = url;
+        iframe.style.cssText = 'width:100%; height:100%; border:none;';
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+        return iframe;
+    }
+
+    // Since cloud FP2602 the NGUI sanitizes HtmlComponent content before it is
+    // assigned to innerHTML, which strips <iframe> markup entirely. Only a plain
+    // host <div> survives the sanitizer, so the iframe has to be attached via
+    // the DOM API — and re-attached whenever the NGUI re-renders the host.
+    _ensureIframeMounted(hostId, iframeId, url, onMount) {
+        this._iframeMounts = this._iframeMounts || {};
+        this._iframeMounts[hostId] = () => {
+            const host = document.getElementById(hostId);
+            if (!host || host.querySelector('iframe')) {
+                return;
+            }
+            const iframe = this._buildIframe(iframeId, url);
+            host.appendChild(iframe);
+            if (onMount) {
+                onMount(iframe);
+            }
+        };
+        this._iframeMounts[hostId]();
+        if (!this._mountObserver) {
+            this._mountObserver = new MutationObserver(() => {
+                for (const mount of Object.values(this._iframeMounts)) {
+                    mount();
+                }
+            });
+            this._mountObserver.observe(document.body, { childList: true, subtree: true });
+        }
     }
 
     async fetchPluginConfig() {
@@ -116,6 +144,11 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
             }
         }
         this._eventHandlers = {};
+        if (this._mountObserver) {
+            this._mountObserver.disconnect();
+            this._mountObserver = null;
+        }
+        this._iframeMounts = {};
         window.removeEventListener('message', this._boundMessageHandler);
     }
 
@@ -268,20 +301,14 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
         }
 
         const iframeId = this.iframeIdPopup;
+        const hostId = '__PREFIX___popup_host';
 
         this.eventBus.push('SHOW_GENERIC_POPUP', {
             title: 'Web App',
             componentConfig: {
                 component: 'HtmlComponent',
                 props: {
-                    content: `
-                        <iframe
-                            id="${iframeId}"
-                            src="${url}"
-                            style="width:100%; height:100%; border:none;"
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                        ></iframe>
-                    `
+                    content: `<div id="${hostId}" style="width:100%; height:100%;"></div>`
                 }
             },
             hideCancelButton: false,
@@ -289,17 +316,17 @@ Plugin.__PREFIX__BridgePlugin = class __PREFIX__BridgePlugin {
             resultFunction: (positive) => {
                 console.log('Iframe popup closed. Cancelled:', !positive);
                 this.iframeWindow = null;
+                delete this._iframeMounts[hostId];
                 const globalInputHandler = this.pluginService.getContextInstance('KeyboardTools');
                 globalInputHandler.getInputHandler().popPrimaryTarget();
             }
         });
 
+        this._ensureIframeMounted(hostId, iframeId, url, (iframe) => {
+            this.iframeWindow = iframe.contentWindow;
+        });
+
         setTimeout(() => {
-            const iframe = document.getElementById(iframeId);
-            console.log('got Iframe:', iframe);
-            if (iframe) {
-                this.iframeWindow = iframe.contentWindow;
-            }
             const globalInputHandler = this.pluginService.getContextInstance('KeyboardTools');
             globalInputHandler.getInputHandler().pushPrimaryTarget({
                 getValue: () => {
