@@ -235,7 +235,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
             logger.warn("[{}] Proxy request blocked: {}", prefix, e.getMessage());
             servletResponse.setStatus(HttpServletResponse.SC_FORBIDDEN);
             servletResponse.setContentType("application/json");
-            servletResponse.getWriter().write("{\"error\":\"" + e.getMessage() + "\"}");
+            servletResponse.getWriter().write(new JSONObject().element("error", e.getMessage()).toString());
             return;
         }
 
@@ -286,8 +286,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
     private void serveLocalIndexHtml(HttpServletResponse response) throws IOException {
         try (InputStream is = this.getClass().getResourceAsStream("/app/index.html")) {
             if (is == null) {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.getWriter().write("index.html not found");
+                sendPlainTextError(response, HttpServletResponse.SC_NOT_FOUND, "index.html not found");
                 return;
             }
 
@@ -309,8 +308,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
             validateRemoteBaseUrl();
         } catch (SecurityException e) {
             logger.error("[{}] Remote base URL validation failed: {}", prefix, e.getMessage());
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.getWriter().write(e.getMessage());
+            sendPlainTextError(response, HttpServletResponse.SC_FORBIDDEN, e.getMessage());
             return;
         }
 
@@ -319,15 +317,13 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
 
         try (Response upstreamResponse = httpClient.newCall(request).execute()) {
             if (!upstreamResponse.isSuccessful()) {
-                response.setStatus(upstreamResponse.code());
-                response.getWriter().write("Failed to fetch remote index.html from " + url);
+                sendPlainTextError(response, upstreamResponse.code(), "Failed to fetch remote index.html from " + url);
                 return;
             }
 
             ResponseBody body = upstreamResponse.body();
             if (body == null) {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.getWriter().write("Empty response from remote server");
+                sendPlainTextError(response, HttpServletResponse.SC_NOT_FOUND, "Empty response from remote server");
                 return;
             }
 
@@ -366,8 +362,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
         String path = request.getParameter("path");
 
         if (path == null || path.isEmpty() || path.contains("..")) {
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("Invalid path");
+            sendPlainTextError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid path");
             return;
         }
 
@@ -377,8 +372,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
         }
 
         if (path.isEmpty()) {
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("Invalid path");
+            sendPlainTextError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid path");
             return;
         }
 
@@ -394,8 +388,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
 
         try (InputStream is = this.getClass().getResourceAsStream(resourcePath)) {
             if (is == null) {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.getWriter().write("Resource not found: " + path);
+                sendPlainTextError(response, HttpServletResponse.SC_NOT_FOUND, "Resource not found: " + path);
                 return;
             }
 
@@ -418,8 +411,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
             validateRemoteBaseUrl();
         } catch (SecurityException e) {
             logger.error("[{}] Remote base URL validation failed: {}", prefix, e.getMessage());
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.getWriter().write(e.getMessage());
+            sendPlainTextError(response, HttpServletResponse.SC_FORBIDDEN, e.getMessage());
             return;
         }
 
@@ -428,8 +420,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
 
         try (Response upstreamResponse = httpClient.newCall(request).execute()) {
             if (!upstreamResponse.isSuccessful()) {
-                response.setStatus(upstreamResponse.code());
-                response.getWriter().write("Failed to fetch remote resource: " + path);
+                sendPlainTextError(response, upstreamResponse.code(), "Failed to fetch remote resource: " + path);
                 return;
             }
 
@@ -456,8 +447,7 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
     private void serveClasspathResource(String classpathPath, HttpServletResponse response) throws IOException {
         try (InputStream is = this.getClass().getResourceAsStream(classpathPath)) {
             if (is == null) {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.getWriter().write("Classpath resource not found: " + classpathPath);
+                sendPlainTextError(response, HttpServletResponse.SC_NOT_FOUND, "Classpath resource not found: " + classpathPath);
                 return;
             }
 
@@ -476,6 +466,18 @@ public abstract class AbstractWebAppBridgePlugin extends BasePlugin {
             return CONTENT_TYPES.getOrDefault(ext, "application/octet-stream");
         }
         return "application/octet-stream";
+    }
+
+    /**
+     * Error responses must carry an explicit non-HTML content type: some messages
+     * echo request data, which the browser would otherwise render as HTML
+     * (reflected XSS via e.g. {@code ?path=<script>...}).
+     */
+    private void sendPlainTextError(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType("text/plain");
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write(message);
     }
 
     // -------------------------------------------------------
