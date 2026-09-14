@@ -1,0 +1,9 @@
+{
+  "mode": "SPECIFIC",
+  "versions": [
+    {
+      "edition": "CLOUD",
+      "featurePack": "2503"
+    }
+  ]
+}
